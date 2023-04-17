@@ -6,17 +6,22 @@ import logging
 from collections import namedtuple
 from datetime import datetime
 from typing import (  # noqa: F401
-    Dict, Iterator, List, Optional, Union,
+    Any, Dict, Iterator, List, Optional, Tuple, Union,
 )
 
 from pyhocon import ConfigFactory, ConfigTree  # noqa: F401
 from pyspark.sql import SparkSession
 from pyspark.sql.catalog import Table
-from pyspark.sql.utils import AnalysisException
+from pyspark.sql.types import (
+    ArrayType, MapType, StructField, StructType,
+)
+from pyspark.sql.utils import AnalysisException, ParseException
 
 from databuilder.extractor.base_extractor import Extractor
+from databuilder.extractor.table_metadata_constants import PARTITION_BADGE
 from databuilder.models.table_last_updated import TableLastUpdated
 from databuilder.models.table_metadata import ColumnMetadata, TableMetadata
+from databuilder.models.watermark import Watermark
 
 TableKey = namedtuple('TableKey', ['schema', 'table_name'])
 
@@ -25,16 +30,21 @@ LOGGER = logging.getLogger(__name__)
 
 # TODO once column tags work properly, consider deprecating this for TableMetadata directly
 class ScrapedColumnMetadata(object):
-    def __init__(self, name: str, data_type: str, description: Optional[str], sort_order: int):
+    def __init__(self, name: str, data_type: str, description: Optional[str], sort_order: int,
+                 badges: Union[List[str], None] = None):
         self.name = name
         self.data_type = data_type
         self.description = description
         self.sort_order = sort_order
         self.is_partition = False
         self.attributes: Dict[str, str] = {}
+        self.badges = badges
 
     def set_is_partition(self, is_partition: bool) -> None:
         self.is_partition = is_partition
+
+    def set_badges(self, badges: Union[List[str], None]) -> None:
+        self.badges = badges
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ScrapedColumnMetadata):
@@ -44,7 +54,8 @@ class ScrapedColumnMetadata(object):
                 self.description == other.description and
                 self.sort_order == other.sort_order and
                 self.is_partition == other.is_partition and
-                self.attributes == other.attributes)
+                self.attributes == other.attributes and
+                self.badges == other.badges)
 
     def __repr__(self) -> str:
         return f'{self.name}:{self.data_type}'
@@ -120,6 +131,9 @@ class DeltaLakeMetadataExtractor(Extractor):
     Extracts Delta Lake Metadata.
     This requires a spark session to run that has a hive metastore populated with all of the delta tables
     that you are interested in.
+
+    By default, the extractor does not extract nested columns. Set the EXTRACT_NESTED_COLUMNS conf to True
+    if you would like nested columns extracted
     """
     # CONFIG KEYS
     DATABASE_KEY = "database"
@@ -136,6 +150,10 @@ class DeltaLakeMetadataExtractor(Extractor):
                                               DELTA_TABLES_ONLY: True})
     PARTITION_COLUMN_TAG = 'is_partition'
 
+    # For backwards compatibility, the delta lake extractor does not extract nested columns for indexing
+    # Set this to true in the conf if you would like nested columns & complex types fully extracted
+    EXTRACT_NESTED_COLUMNS = "extract_nested_columns"
+
     def init(self, conf: ConfigTree) -> None:
         self.conf = conf.with_fallback(DeltaLakeMetadataExtractor.DEFAULT_CONFIG)
         self._extract_iter = None  # type: Union[None, Iterator]
@@ -144,11 +162,13 @@ class DeltaLakeMetadataExtractor(Extractor):
         self.exclude_list = self.conf.get_list(DeltaLakeMetadataExtractor.EXCLUDE_LIST_SCHEMAS_KEY)
         self.schema_list = self.conf.get_list(DeltaLakeMetadataExtractor.SCHEMA_LIST_KEY)
         self.delta_tables_only = self.conf.get_bool(DeltaLakeMetadataExtractor.DELTA_TABLES_ONLY)
+        self.extract_nested_columns = self.conf.get_bool(DeltaLakeMetadataExtractor.EXTRACT_NESTED_COLUMNS,
+                                                         default=False)
 
     def set_spark(self, spark: SparkSession) -> None:
         self.spark = spark
 
-    def extract(self) -> Union[TableMetadata, TableLastUpdated, None]:
+    def extract(self) -> Union[TableMetadata, List[Tuple[Watermark, Watermark]], TableLastUpdated, None]:
         if not self._extract_iter:
             self._extract_iter = self._get_extract_iter()
         try:
@@ -159,12 +179,13 @@ class DeltaLakeMetadataExtractor(Extractor):
     def get_scope(self) -> str:
         return 'extractor.delta_lake_table_metadata'
 
-    def _get_extract_iter(self) -> Iterator[Union[TableMetadata, TableLastUpdated, None]]:
+    def _get_extract_iter(self) -> Iterator[Union[TableMetadata, Watermark, TableLastUpdated,
+                                                  None]]:
         """
         Given either a list of schemas, or a list of exclude schemas,
         it will query hive metastore and then access delta log
         to get all of the metadata for your delta tables. It will produce:
-         - table and column metadata
+         - table and column metadata (including partition watermarks)
          - last updated information
         """
         if self.schema_list:
@@ -177,7 +198,6 @@ class DeltaLakeMetadataExtractor(Extractor):
             LOGGER.info("working on %s", schemas)
             tables = self.get_all_tables(schemas)
         # TODO add the programmatic information as well?
-        # TODO add watermarks
         scraped_tables = self.scrape_all_tables(tables)
         for scraped_table in scraped_tables:
             if not scraped_table:
@@ -187,6 +207,11 @@ class DeltaLakeMetadataExtractor(Extractor):
                 continue
             else:
                 yield self.create_table_metadata(scraped_table)
+                watermarks = self.create_table_watermarks(scraped_table)
+                if watermarks:
+                    for watermark in watermarks:
+                        yield watermark[0]
+                        yield watermark[1]
                 last_updated = self.create_table_last_updated(scraped_table)
                 if last_updated:
                     yield last_updated
@@ -279,12 +304,16 @@ class DeltaLakeMetadataExtractor(Extractor):
         '''This fetches delta table columns, which unfortunately
         in the general case cannot rely on spark.catalog.listColumns.'''
         raw_columns = []
+        field_dict: Dict[str, Any] = {}
+        table_name = f"{schema}.{table}"
         try:
-            raw_columns = self.spark.sql(f"describe {schema}.{table}").collect()
-        except AnalysisException as e:
+            raw_columns = self.spark.sql(f"describe {table_name}").collect()
+            for field in self.spark.table(f"{table_name}").schema:
+                field_dict[field.name] = field
+        except (AnalysisException, ParseException) as e:
             LOGGER.error(e)
-            return raw_columns
-        parsed_columns = {}
+            return []
+        parsed_columns: Dict[str, ScrapedColumnMetadata] = {}
         partition_cols = False
         sort_order = 0
         for row in raw_columns:
@@ -294,22 +323,64 @@ class DeltaLakeMetadataExtractor(Extractor):
                 partition_cols = True
                 continue
             if not partition_cols:
-                column = ScrapedColumnMetadata(
-                    name=row['col_name'],
-                    description=row['comment'] if row['comment'] else None,
-                    data_type=row['data_type'],
-                    sort_order=sort_order
-                )
-                parsed_columns[row['col_name']] = column
-                sort_order += 1
+                # Attempt to extract nested columns if conf value requests it
+                if self.extract_nested_columns \
+                        and col_name in field_dict \
+                        and self.is_complex_delta_type(field_dict[col_name].dataType):
+                    sort_order = self._iterate_complex_type("", field_dict[col_name], parsed_columns, sort_order)
+                else:
+                    column = ScrapedColumnMetadata(
+                        name=row['col_name'],
+                        description=row['comment'] if row['comment'] else None,
+                        data_type=row['data_type'],
+                        sort_order=sort_order,
+                        badges=None
+                    )
+                    parsed_columns[row['col_name']] = column
+                    sort_order += 1
             else:
                 if row['data_type'] in parsed_columns:
                     LOGGER.debug(f"Adding partition column table for {row['data_type']}")
                     parsed_columns[row['data_type']].set_is_partition(True)
+                    parsed_columns[row['data_type']].set_badges([PARTITION_BADGE])
                 elif row['col_name'] in parsed_columns:
                     LOGGER.debug(f"Adding partition column table for {row['col_name']}")
                     parsed_columns[row['col_name']].set_is_partition(True)
+                    parsed_columns[row['col_name']].set_badges([PARTITION_BADGE])
         return list(parsed_columns.values())
+
+    def _iterate_complex_type(self,
+                              parent: str,
+                              curr_field: Union[StructType, StructField, ArrayType, MapType],
+                              parsed_columns: Dict,
+                              total_cols: int) -> int:
+        col_name = parent
+        if self.is_struct_field(curr_field):
+            if len(parent) > 0:
+                col_name = f"{parent}.{curr_field.name}"
+            else:
+                col_name = curr_field.name
+
+            parsed_columns[col_name] = ScrapedColumnMetadata(
+                name=col_name,
+                data_type=curr_field.dataType.simpleString(),
+                sort_order=total_cols,
+                description=None,
+            )
+            total_cols += 1
+            if self.is_complex_delta_type(curr_field.dataType):
+                total_cols = self._iterate_complex_type(col_name, curr_field.dataType, parsed_columns, total_cols)
+
+        if self.is_complex_delta_type(curr_field):
+            if self.is_struct_type(curr_field):
+                for field in curr_field:
+                    total_cols = self._iterate_complex_type(col_name, field, parsed_columns, total_cols)
+            elif self.is_array_type(curr_field) and self.is_complex_delta_type(curr_field.elementType):
+                total_cols = self._iterate_complex_type(col_name, curr_field.elementType, parsed_columns, total_cols)
+            elif self.is_map_type(curr_field) and self.is_complex_delta_type(curr_field.valueType):
+                total_cols = self._iterate_complex_type(col_name, curr_field.valueType, parsed_columns, total_cols)
+
+        return total_cols
 
     def create_table_metadata(self, table: ScrapedTableMetadata) -> TableMetadata:
         '''Creates the amundsen table metadata object from the ScrapedTableMetadata object.'''
@@ -320,7 +391,8 @@ class DeltaLakeMetadataExtractor(Extractor):
                     ColumnMetadata(name=column.name,
                                    description=column.description,
                                    col_type=column.data_type,
-                                   sort_order=column.sort_order)
+                                   sort_order=column.sort_order,
+                                   badges=column.badges)
                 )
         description = table.get_table_description()
         return TableMetadata(self._db,
@@ -342,3 +414,121 @@ class DeltaLakeMetadataExtractor(Extractor):
                                     cluster=self._cluster)
         else:
             return None
+
+    def is_complex_delta_type(self, delta_type: Any) -> bool:
+        return isinstance(delta_type, StructType) or \
+            isinstance(delta_type, ArrayType) or \
+            isinstance(delta_type, MapType)
+
+    def is_struct_type(self, delta_type: Any) -> bool:
+        return isinstance(delta_type, StructType)
+
+    def is_struct_field(self, delta_type: Any) -> bool:
+        return isinstance(delta_type, StructField)
+
+    def is_array_type(self, delta_type: Any) -> bool:
+        return isinstance(delta_type, ArrayType)
+
+    def is_map_type(self, delta_type: Any) -> bool:
+        return isinstance(delta_type, MapType)
+
+    def create_table_watermarks(self, table: ScrapedTableMetadata) -> Optional[List[Tuple[Watermark, Watermark]]]:  # noqa c901
+        """
+        Creates the watermark objects that reflect the highest and lowest values in the partition columns
+        """
+        def _is_show_partitions_supported(t: ScrapedTableMetadata) -> bool:
+            try:
+                self.spark.sql(f'show partitions {t.schema}.{t.table}')
+                return True
+            except Exception as e:
+                # pyspark.sql.utils.AnalysisException: SHOW PARTITIONS is not allowed on a table that is not partitioned
+                LOGGER.warning(e)
+                return False
+
+        def _fetch_minmax(table: ScrapedTableMetadata, partition_column: str) -> Tuple[str, str]:
+            LOGGER.info(f'Fetching partition info for {partition_column} in {table.schema}.{table.table}')
+            min_water = ""
+            max_water = ""
+            try:
+                if is_show_partitions_supported:
+                    LOGGER.info('Using SHOW PARTITION')
+                    min_water = str(
+                        self
+                        .spark
+                        .sql(f'show partitions {table.schema}.{table.table}')
+                        .orderBy(partition_column, ascending=True)
+                        .first()[partition_column])
+                    max_water = str(
+                        self
+                        .spark
+                        .sql(f'show partitions {table.schema}.{table.table}')
+                        .orderBy(partition_column, ascending=False)
+                        .first()[partition_column])
+                else:
+                    LOGGER.info('Using DESCRIBE EXTENDED')
+                    part_info = (self
+                                 .spark
+                                 .sql(f'describe extended {table.schema}.{table.table} {partition_column}')
+                                 .collect()
+                                 )
+                    minmax = {}
+                    for mm in list(filter(lambda x: x['info_name'] in ['min', 'max'], part_info)):
+                        minmax[mm['info_name']] = mm['info_value']
+                    min_water = minmax['min']
+                    max_water = minmax['max']
+            except Exception as e:
+                LOGGER.warning(f'Failed fetching partition watermarks: {e}')
+            return max_water, min_water
+
+        if not table.table_detail:
+            LOGGER.info(f'No table details found in {table}, skipping')
+            return None
+
+        if 'partitionColumns' not in table.table_detail or len(table.table_detail['partitionColumns']) < 1:
+            LOGGER.info(f'No partitions found in {table}, skipping')
+            return None
+
+        is_show_partitions_supported: bool = _is_show_partitions_supported(table)
+
+        if not is_show_partitions_supported:
+            LOGGER.info('Analyzing table, this can take a while...')
+            partition_columns = ','.join(table.table_detail['partitionColumns'])
+            self.spark.sql(
+                f"analyze table {table.schema}.{table.table} compute statistics for columns {partition_columns}")
+
+        # It makes little sense to get watermarks from a string value, with no concept of high and low.
+        # Just imagine a dataset with a partition by country...
+        valid_types = ['int', 'float', 'date', 'datetime']
+        if table.columns:
+            _table_columns = table.columns
+        else:
+            _table_columns = []
+        columns_with_valid_type = list(map(lambda l: l.name,
+                                           filter(lambda l: str(l.data_type).lower() in valid_types, _table_columns)
+                                           )
+                                       )
+
+        r = []
+        for partition_column in table.table_detail['partitionColumns']:
+            if partition_column not in columns_with_valid_type:
+                continue
+
+            last, first = _fetch_minmax(table, partition_column)
+            low = Watermark(
+                create_time=table.table_detail['createdAt'],
+                database=self._db,
+                schema=table.schema,
+                table_name=table.table,
+                part_name=f'{partition_column}={first}',
+                part_type='low_watermark',
+                cluster=self._cluster)
+            high = Watermark(
+                create_time=table.table_detail['createdAt'],
+                database=self._db,
+                schema=table.schema,
+                table_name=table.table,
+                part_name=f'{partition_column}={last}',
+                part_type='high_watermark',
+                cluster=self._cluster)
+            r.append((high, low))
+        return r

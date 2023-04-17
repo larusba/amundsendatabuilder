@@ -5,14 +5,21 @@ import json
 import logging
 from typing import List
 
+from amundsen_common.models.index_map import TABLE_INDEX_MAP
 from elasticsearch.exceptions import NotFoundError
 from pyhocon import ConfigTree
 
 from databuilder.publisher.base_publisher import Publisher
-from databuilder.publisher.elasticsearch_constants import TABLE_ELASTICSEARCH_INDEX_MAPPING
 
 LOGGER = logging.getLogger(__name__)
 
+
+##################################################################################################
+#
+# ElasticsearchPublisher is being deprecated in favor of using SearchMetadatatoElasticasearchTask
+# which publishes ES metadata with mappings compatible with amundsensearch >= 4.0.0
+#
+##################################################################################################
 
 class ElasticsearchPublisher(Publisher):
     """
@@ -35,7 +42,7 @@ class ElasticsearchPublisher(Publisher):
     # config to control how many max documents to publish at a time
     ELASTICSEARCH_PUBLISHER_BATCH_SIZE = 'batch_size'
 
-    DEFAULT_ELASTICSEARCH_INDEX_MAPPING = TABLE_ELASTICSEARCH_INDEX_MAPPING
+    DEFAULT_ELASTICSEARCH_INDEX_MAPPING = TABLE_INDEX_MAP
 
     def __init__(self) -> None:
         super(ElasticsearchPublisher, self).__init__()
@@ -44,7 +51,7 @@ class ElasticsearchPublisher(Publisher):
         self.conf = conf
 
         self.file_path = self.conf.get_string(ElasticsearchPublisher.FILE_PATH_CONFIG_KEY)
-        self.file_mode = self.conf.get_string(ElasticsearchPublisher.FILE_MODE_CONFIG_KEY, 'w')
+        self.file_mode = self.conf.get_string(ElasticsearchPublisher.FILE_MODE_CONFIG_KEY, 'r')
 
         self.elasticsearch_type = self.conf.get_string(ElasticsearchPublisher.ELASTICSEARCH_DOC_TYPE_CONFIG_KEY)
         self.elasticsearch_client = self.conf.get(ElasticsearchPublisher.ELASTICSEARCH_CLIENT_CONFIG_KEY)
@@ -77,7 +84,11 @@ class ElasticsearchPublisher(Publisher):
         After upload, swap alias from {old_index} to {new_index} in a atomic operation
         to route traffic to {new_index}
         """
-        actions = [json.loads(l) for l in self.file_handler.readlines()]
+
+        LOGGER.warn('ElasticsearchPublisher is being deprecated in favor of using SearchMetadatatoElasticasearchTask\
+            which publishes ES metadata with mappings compatible with amundsensearch >= 4.0.0')
+
+        actions = [json.loads(line) for line in self.file_handler.readlines()]
         # ensure new data exists
         if not actions:
             LOGGER.warning("received no data to upload to Elasticsearch!")
@@ -91,9 +102,11 @@ class ElasticsearchPublisher(Publisher):
 
         # create new index with mapping
         self.elasticsearch_client.indices.create(index=self.elasticsearch_new_index, body=self.elasticsearch_mapping)
+
         for action in actions:
-            index_row = dict(index=dict(_index=self.elasticsearch_new_index,
-                                        _type=self.elasticsearch_type))
+            index_row = dict(index=dict(_index=self.elasticsearch_new_index))
+            action['resource_type'] = self.elasticsearch_type
+
             bulk_actions.append(index_row)
             bulk_actions.append(action)
             cnt += 1
@@ -121,6 +134,14 @@ class ElasticsearchPublisher(Publisher):
 
         # perform alias update and index delete in single atomic operation
         self.elasticsearch_client.indices.update_aliases(update_action)
+
+    def close(self) -> None:
+        """
+        close the file handler
+        :return:
+        """
+        if self.file_handler:
+            self.file_handler.close()
 
     def get_scope(self) -> str:
         return 'publisher.elasticsearch'

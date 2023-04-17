@@ -3,9 +3,10 @@
 
 import logging
 from typing import (
-    Any, Dict, List, Set, cast,
+    Any, Callable, Dict, List, Set, cast,
 )
 
+from googleapiclient.errors import HttpError
 from pyhocon import ConfigTree
 
 from databuilder.extractor.base_bigquery_extractor import BaseBigQueryExtractor, DatasetRef
@@ -30,7 +31,7 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
         BaseBigQueryExtractor.init(self, conf)
         self.iter = iter(self._iterate_over_tables())
 
-    def _retrieve_tables(self, dataset: DatasetRef) -> Any:
+    def _retrieve_tables(self, dataset: DatasetRef) -> Any: # noqa: max-complexity: 12
         grouped_tables: Set[str] = set([])
 
         for page in self._page_table_list_results(dataset):
@@ -41,13 +42,13 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
                 tableRef = table['tableReference']
                 table_id = tableRef['tableId']
 
-                # BigQuery tables that have 8 digits as last characters are
-                # considered date range tables and are grouped together in the UI.
+                # BigQuery tables that have numeric suffix starting with a date string will be
+                # considered date range tables.
                 # ( e.g. ga_sessions_20190101, ga_sessions_20190102, etc. )
                 if self._is_sharded_table(table_id):
-                    # If the last eight characters are digits, we assume the table is of a table date range type
+                    # Sharded tables have numeric suffix starting with a date string
                     # and then we only need one schema definition
-                    table_prefix = table_id[:-BigQueryMetadataExtractor.DATE_LENGTH]
+                    table_prefix = table_id[:-len(self._get_sharded_table_suffix(table_id))]
                     if table_prefix in grouped_tables:
                         # If one table in the date range is processed, then ignore other ones
                         # (it adds too much metadata)
@@ -56,10 +57,16 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
                     table_id = table_prefix
                     grouped_tables.add(table_prefix)
 
-                table = self.bigquery_service.tables().get(
-                    projectId=tableRef['projectId'],
-                    datasetId=tableRef['datasetId'],
-                    tableId=tableRef['tableId']).execute(num_retries=BigQueryMetadataExtractor.NUM_RETRIES)
+                try:
+                    table = self.bigquery_service.tables().get(
+                        projectId=tableRef['projectId'],
+                        datasetId=tableRef['datasetId'],
+                        tableId=tableRef['tableId']).execute(num_retries=BigQueryMetadataExtractor.NUM_RETRIES)
+                except HttpError as err:
+                    # While iterating over the tables in a dataset, some temporary tables might be deleted
+                    # this causes 404 errors, so we should handle them gracefully
+                    LOGGER.error(err)
+                    continue
 
                 # BigQuery tables also have interesting metadata about partitioning
                 # data location (EU/US), mod/create time, etc... Extract that some other time?
@@ -78,17 +85,19 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
                     cluster=tableRef['projectId'],
                     schema=tableRef['datasetId'],
                     name=table_id,
-                    description=table.get('description', ''),
+                    description=table.get('description', None),
                     columns=cols,
                     is_view=table['type'] == 'VIEW')
 
-                yield(table_meta)
+                yield table_meta
 
     def _iterate_over_cols(self,
                            parent: str,
                            column: Dict[str, str],
                            cols: List[ColumnMetadata],
                            total_cols: int) -> int:
+        get_column_type: Callable[[dict], str] = lambda column: column['type'] + ':' + column['mode']\
+            if column.get('mode') else column['type']
         if len(parent) > 0:
             col_name = f'{parent}.{column["name"]}'
         else:
@@ -97,8 +106,8 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
         if column['type'] == 'RECORD':
             col = ColumnMetadata(
                 name=col_name,
-                description=column.get('description', ''),
-                col_type=column['type'],
+                description=column.get('description', None),
+                col_type=get_column_type(column),
                 sort_order=total_cols)
             cols.append(col)
             total_cols += 1
@@ -112,8 +121,8 @@ class BigQueryMetadataExtractor(BaseBigQueryExtractor):
         else:
             col = ColumnMetadata(
                 name=col_name,
-                description=column.get('description', ''),
-                col_type=column['type'],
+                description=column.get('description', None),
+                col_type=get_column_type(column),
                 sort_order=total_cols)
             cols.append(col)
             return total_cols + 1

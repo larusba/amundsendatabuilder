@@ -11,7 +11,7 @@ from pyspark.sql import SparkSession
 from databuilder.extractor.delta_lake_metadata_extractor import DeltaLakeMetadataExtractor
 from databuilder.job.job import DefaultJob
 from databuilder.loader.file_system_neo4j_csv_loader import FsNeo4jCSVLoader
-from databuilder.models.table_metadata import DESCRIPTION_NODE_LABEL
+from databuilder.models.description_metadata import DESCRIPTION_NODE_LABEL
 from databuilder.publisher import neo4j_csv_publisher
 from databuilder.publisher.neo4j_csv_publisher import Neo4jCsvPublisher
 from databuilder.task.task import DefaultTask
@@ -49,7 +49,7 @@ def create_delta_lake_job_config():
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4j_user,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4j_password,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_CREATE_ONLY_NODES}': [DESCRIPTION_NODE_LABEL],
-        f'publisher.neo4j.job_publish_tag': 'some_unique_tag'  # TO-DO unique tag must be added
+        'publisher.neo4j.job_publish_tag': 'some_unique_tag'  # TO-DO unique tag must be added
     })
     return job_config
 

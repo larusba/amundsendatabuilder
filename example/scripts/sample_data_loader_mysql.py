@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-TODO: it needs db init(in dev) first in metadata service
+Please init/upgrade db first in metadata service if needed.
+
 This is a example script demonstrating how to load data into MySQL and
 Elasticsearch without using an Airflow DAG.
 
@@ -26,18 +27,18 @@ import os
 import sys
 import uuid
 
+from amundsen_common.models.index_map import DASHBOARD_ELASTICSEARCH_INDEX_MAPPING, USER_INDEX_MAP
 from elasticsearch import Elasticsearch
 from pyhocon import ConfigFactory
 
-from databuilder.extractor.csv_extractor import CsvExtractor, CsvTableColumnExtractor
+from databuilder.extractor.csv_extractor import (
+    CsvColumnLineageExtractor, CsvExtractor, CsvTableColumnExtractor, CsvTableLineageExtractor,
+)
 from databuilder.extractor.es_last_updated_extractor import EsLastUpdatedExtractor
 from databuilder.extractor.mysql_search_data_extractor import MySQLSearchDataExtractor
 from databuilder.job.job import DefaultJob
 from databuilder.loader.file_system_elasticsearch_json_loader import FSElasticsearchJSONLoader
 from databuilder.loader.file_system_mysql_csv_loader import FSMySQLCSVLoader
-from databuilder.publisher.elasticsearch_constants import (
-    DASHBOARD_ELASTICSEARCH_INDEX_MAPPING, USER_ELASTICSEARCH_INDEX_MAPPING,
-)
 from databuilder.publisher.elasticsearch_publisher import ElasticsearchPublisher
 from databuilder.publisher.mysql_csv_publisher import MySQLCSVPublisher
 from databuilder.task.task import DefaultTask
@@ -108,6 +109,52 @@ def run_table_column_job(table_path, column_path):
     job_config = ConfigFactory.from_dict({
         'extractor.csvtablecolumn.table_file_location': table_path,
         'extractor.csvtablecolumn.column_file_location': column_path,
+        'loader.mysql_filesystem_csv.record_dir_path': record_files_folder,
+        'loader.mysql_filesystem_csv.delete_created_directories': True,
+        'publisher.mysql.record_files_directory': record_files_folder,
+        'publisher.mysql.conn_string': mysql_conn_string,
+        'publisher.mysql.job_publish_tag': 'unique_tag'
+    })
+    job = DefaultJob(conf=job_config,
+                     task=task,
+                     publisher=MySQLCSVPublisher())
+    job.launch()
+
+
+def run_table_lineage_job(table_lineage_path):
+    tmp_folder = '/var/tmp/amundsen/table_column'
+    record_files_folder = f'{tmp_folder}/records'
+
+    extractor = CsvTableLineageExtractor()
+    csv_loader = FSMySQLCSVLoader()
+    task = DefaultTask(extractor,
+                       loader=csv_loader,
+                       transformer=NoopTransformer())
+    job_config = ConfigFactory.from_dict({
+        'extractor.csvtablelineage.table_lineage_file_location': table_lineage_path,
+        'loader.mysql_filesystem_csv.record_dir_path': record_files_folder,
+        'loader.mysql_filesystem_csv.delete_created_directories': True,
+        'publisher.mysql.record_files_directory': record_files_folder,
+        'publisher.mysql.conn_string': mysql_conn_string,
+        'publisher.mysql.job_publish_tag': 'unique_tag'
+    })
+    job = DefaultJob(conf=job_config,
+                     task=task,
+                     publisher=MySQLCSVPublisher())
+    job.launch()
+
+
+def run_column_lineage_job(column_lineage_path):
+    tmp_folder = '/var/tmp/amundsen/table_column'
+    record_files_folder = f'{tmp_folder}/records'
+
+    extractor = CsvColumnLineageExtractor()
+    csv_loader = FSMySQLCSVLoader()
+    task = DefaultTask(extractor,
+                       loader=csv_loader,
+                       transformer=NoopTransformer())
+    job_config = ConfigFactory.from_dict({
+        'extractor.csvcolumnlineage.column_lineage_file_location': column_lineage_path,
         'loader.mysql_filesystem_csv.record_dir_path': record_files_folder,
         'loader.mysql_filesystem_csv.delete_created_directories': True,
         'publisher.mysql.record_files_directory': record_files_folder,
@@ -240,6 +287,8 @@ if __name__ == "__main__":
     # logging.basicConfig(level=logging.INFO)
 
     run_table_column_job('example/sample_data/sample_table.csv', 'example/sample_data/sample_col.csv')
+    run_table_lineage_job('example/sample_data/sample_table_lineage.csv')
+    run_column_lineage_job('example/sample_data/sample_column_lineage.csv')
     run_csv_job('example/sample_data/sample_table_column_stats.csv', 'test_table_column_stats',
                 'databuilder.models.table_stats.TableColumnStats')
     run_csv_job('example/sample_data/sample_table_programmatic_source.csv', 'test_programmatic_source',
@@ -251,7 +300,7 @@ if __name__ == "__main__":
     run_csv_job('example/sample_data/sample_table_owner.csv', 'test_table_owner_metadata',
                 'databuilder.models.table_owner.TableOwner')
     run_csv_job('example/sample_data/sample_column_usage.csv', 'test_usage_metadata',
-                'databuilder.models.column_usage_model.ColumnUsageModel')
+                'databuilder.models.table_column_usage.ColumnReader')
     run_csv_job('example/sample_data/sample_application.csv', 'test_application_metadata',
                 'databuilder.models.application.Application')
     run_csv_job('example/sample_data/sample_source.csv', 'test_source_metadata',
@@ -291,7 +340,7 @@ if __name__ == "__main__":
         elasticsearch_doc_type_key='user',
         model_name='databuilder.models.user_elasticsearch_document.UserESDocument',
         entity_type='user',
-        elasticsearch_mapping=USER_ELASTICSEARCH_INDEX_MAPPING)
+        elasticsearch_mapping=USER_INDEX_MAP)
     job_es_user.launch()
 
     job_es_dashboard = create_es_publisher_sample_job(

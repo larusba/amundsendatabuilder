@@ -1,0 +1,38 @@
+FROM arm64v8/python:3.9-bullseye
+
+COPY ./docker/databuilder /home
+
+WORKDIR /home
+
+## Install dependencies
+RUN apt update -y
+RUN apt upgrade -y
+RUN apt install -y dos2unix cron
+RUN apt-get install bash
+RUN apt install software-properties-common -y
+RUN add-apt-repository ppa:deadsnakes/ppa -y
+RUN apt install python3.9 -y
+RUN apt install python3.9-dev -y
+RUN apt install python3.9-distutils -y
+RUN apt install wget -y
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN python3.9 get-pip.py
+
+RUN apt-get install python3-setuptools -y
+
+## Install python dependencies
+RUN python3.9 -m pip install numpy==1.19.5
+RUN python3.9 -m pip install Cython==0.29.32
+RUN python3.9 -m pip install --upgrade pip
+RUN python3.9 -m pip install -r /home/requirements.txt
+RUN python3.9 /home/setup.py install
+
+# Fix line endings && execute permissions
+RUN chown -R root:root /home/cron
+RUN chmod -R 777 /home/cron
+
+# create cron.log file
+RUN touch /var/log/cron.log
+
+# Run cron on container startup
+CMD ["./cron/start.sh"]

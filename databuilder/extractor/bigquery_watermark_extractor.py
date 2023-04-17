@@ -4,6 +4,8 @@
 import datetime
 import logging
 import textwrap
+import time
+from calendar import timegm
 from collections import namedtuple
 from typing import (
     Any, Dict, Iterator, List, Tuple, Union,
@@ -31,7 +33,8 @@ class BigQueryWatermarkExtractor(BaseBigQueryExtractor):
     def _retrieve_tables(self,
                          dataset: DatasetRef
                          ) -> Iterator[Watermark]:
-        sharded_table_watermarks: Dict[str, Dict[str, Union[str, Dict[str, Any]]]] = {}
+        sharded_table_watermarks: Dict[str, Dict[str, Union[str, Any]]] = {}
+        cutoff_time_in_epoch = timegm(time.strptime(self.cutoff_time, BigQueryWatermarkExtractor.DATE_TIME_FORMAT))
 
         for page in self._page_table_list_results(dataset):
             if 'tables' not in page:
@@ -40,27 +43,32 @@ class BigQueryWatermarkExtractor(BaseBigQueryExtractor):
             for table in page['tables']:
                 tableRef = table['tableReference']
                 table_id = tableRef['tableId']
+                table_creation_time = float(table['creationTime']) / 1000
+                # only extract watermark metadata for tables created before the cut-off time
+                if table_creation_time < cutoff_time_in_epoch:
+                    # BigQuery tables that have numeric suffix starts with a date are
+                    # considered date range tables.
+                    # ( e.g. ga_sessions_20190101, ga_sessions_20190102, etc. )
+                    # We use these dates in the suffixes to determine high and low watermarks
+                    if self._is_sharded_table(table_id):
+                        suffix = self._get_sharded_table_suffix(table_id)
+                        prefix = table_id[:-len(suffix)]
+                        date = suffix[:BaseBigQueryExtractor.DATE_LENGTH]
 
-                # BigQuery tables that have 8 digits as last characters are
-                # considered date range tables and are grouped together in the UI.
-                # ( e.g. ga_sessions_20190101, ga_sessions_20190102, etc. )
-                # We use these suffixes to determine high and low watermarks
-                if self._is_sharded_table(table_id):
-                    suffix = table_id[-BigQueryWatermarkExtractor.DATE_LENGTH:]
-                    prefix = table_id[:-BigQueryWatermarkExtractor.DATE_LENGTH]
-
-                    if prefix in sharded_table_watermarks:
-                        sharded_table_watermarks[prefix]['low'] = min(sharded_table_watermarks[prefix]['low'], suffix)
-                        sharded_table_watermarks[prefix]['high'] = max(sharded_table_watermarks[prefix]['high'], suffix)
+                        if prefix in sharded_table_watermarks:
+                            sharded_table_watermarks[prefix]['low'] = min(
+                                sharded_table_watermarks[prefix]['low'], date)
+                            sharded_table_watermarks[prefix]['high'] = max(
+                                sharded_table_watermarks[prefix]['high'], date)
+                        else:
+                            sharded_table_watermarks[prefix] = {'high': date, 'low': date, 'table': table}
                     else:
-                        sharded_table_watermarks[prefix] = {'high': suffix, 'low': suffix, 'table': table}
-                else:
-                    partitions = self._get_partitions(table, tableRef)
-                    if not partitions:
-                        continue
-                    low, high = self._get_partition_watermarks(table, tableRef, partitions)
-                    yield low
-                    yield high
+                        partitions = self._get_partitions(table, tableRef)
+                        if not partitions:
+                            continue
+                        low, high = self._get_partition_watermarks(table, tableRef, partitions)
+                        yield low
+                        yield high
 
             for prefix, td in sharded_table_watermarks.items():
                 table = td['table']

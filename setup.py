@@ -1,31 +1,27 @@
 # Copyright Contributors to the Amundsen project.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 
 from setuptools import find_packages, setup
 
-__version__ = '4.3.1'
+__version__ = '7.4.3'
 
+requirements_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                 'requirements.txt')
+with open(requirements_path, 'r') as requirements_file:
+    requirements = requirements_file.readlines()
 
-requirements = [
-    "neo4j-driver>=1.7.2,<4.0",
-    "pytz>=2018.4",
-    "statsd>=3.2.1",
-    "retrying>=1.3.3",
-    "requests>=2.23.0,<3.0",
-    "elasticsearch>=6.2.0,<7.0",
-    "pyhocon>=0.3.42",
-    "unidecode",
-    "Jinja2>=2.10.0,<2.12",
-    "pandas>=0.21.0,<1.2.0",
-    "amundsen-rds>=0.0.4"
-]
+requirements_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                 'requirements-dev.txt')
+with open(requirements_path, 'r') as requirements_file:
+    requirements_dev = requirements_file.readlines()
 
 kafka = ['confluent-kafka==1.0.0']
 
 cassandra = ['cassandra-driver==3.20.1']
 
-glue = ['boto3==1.10.1']
+glue = ['boto3==1.17.23']
 
 snowflake = [
     'snowflake-connector-python',
@@ -40,14 +36,14 @@ athena = ['PyAthena[SQLAlchemy]>=1.0.0, <2.0.0']
 bigquery = [
     'google-api-python-client>=1.6.0, <2.0.0dev',
     'google-auth-httplib2>=0.0.1',
-    'google-auth>=1.0.0, <2.0.0dev'
+    'google-auth>=1.16.0, <3.0.0dev'
 ]
 
 jsonpath = ['jsonpath_rw==1.4.0']
 
 db2 = [
-    'ibm_db==3.0.1',
-    'ibm-db-sa-py3==0.3.1-1'
+    'ibm_db>=3.0.1',
+    'ibm-db-sa-py3>=0.3.1-1'
 ]
 
 dremio = [
@@ -66,41 +62,62 @@ neptune = [
     'amundsen-gremlin>=0.0.9',
     'Flask==1.0.2',
     'gremlinpython==3.4.3',
-    'requests-aws4auth==0.9',
-    'typing-extensions==3.7.4',
+    'requests-aws4auth==1.1.0',
+    'typing-extensions==4.0.0',
     'overrides==2.5',
-    'boto3==1.10.1'
+    'boto3==1.17.23'
 ]
 
 feast = [
-    'feast==0.8.0'
+    'feast==0.17.0',
+    'fastapi!=0.76.*'
 ]
 
 atlas = [
-    'pyatlasclient==1.1.2'
+    'pyatlasclient>=1.1.2',
+    'apache-atlas>=0.0.11'
+]
+
+oracle = [
+    'cx_Oracle==8.2.1'
 ]
 
 rds = [
-    'sqlalchemy>=1.3.6,<1.4'
+    'sqlalchemy>=1.3.6',
     'mysqlclient>=1.3.6,<3'
 ]
 
-all_deps = requirements + kafka + cassandra + glue + snowflake + athena + \
-    bigquery + jsonpath + db2 + dremio + druid + spark + feast + neptune + rds
+salesforce = [
+    'simple-salesforce>=1.11.2'
+]
+
+teradata = [
+    'teradatasqlalchemy==17.0.0.0'
+]
+
+schema_registry = [
+    'python-schema-registry-client==2.4.0'
+]
+
+all_deps = requirements + requirements_dev + kafka + cassandra + glue + snowflake + athena + \
+    bigquery + jsonpath + db2 + dremio + druid + spark + feast + neptune + rds \
+    + atlas + salesforce + oracle + teradata + schema_registry
 
 setup(
     name='amundsen-databuilder',
     version=__version__,
     description='Amundsen Data builder',
-    url='https://www.github.com/amundsen-io/amundsendatabuilder',
+    url='https://www.github.com/amundsen-io/amundsen/tree/main/databuilder',
     maintainer='Amundsen TSC',
     maintainer_email='amundsen-tsc@lists.lfai.foundation',
     packages=find_packages(exclude=['tests*']),
+    include_package_data=True,
     dependency_links=[],
     install_requires=requirements,
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     extras_require={
         'all': all_deps,
+        'dev': requirements_dev,
         'kafka': kafka,  # To use with Kafka source extractor
         'cassandra': cassandra,
         'glue': glue,
@@ -115,10 +132,13 @@ setup(
         'delta': spark,
         'feast': feast,
         'atlas': atlas,
-        'rds': rds
+        'rds': rds,
+        'salesforce': salesforce,
+        'oracle': oracle,
+        'teradata': teradata,
+        'schema_registry': schema_registry,
     },
     classifiers=[
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
 )

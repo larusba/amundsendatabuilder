@@ -3,7 +3,9 @@
 
 import json
 import logging
+import re
 from collections import namedtuple
+from datetime import datetime, timezone
 from typing import (
     Any, Dict, Iterator, List,
 )
@@ -29,10 +31,13 @@ class BaseBigQueryExtractor(Extractor):
     CRED_KEY = 'project_cred'
     PAGE_SIZE_KEY = 'page_size'
     FILTER_KEY = 'filter'
+    # metadata for tables created after the cutoff time would not be extracted from bigquery.
+    CUTOFF_TIME_KEY = 'cutoff_time'
     _DEFAULT_SCOPES = ['https://www.googleapis.com/auth/bigquery.readonly']
     DEFAULT_PAGE_SIZE = 300
     NUM_RETRIES = 3
     DATE_LENGTH = 8
+    DATE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
     def init(self, conf: ConfigTree) -> None:
         # should use key_path, or cred_key if the former doesn't exist
@@ -43,6 +48,8 @@ class BaseBigQueryExtractor(Extractor):
             BaseBigQueryExtractor.PAGE_SIZE_KEY,
             BaseBigQueryExtractor.DEFAULT_PAGE_SIZE)
         self.filter = conf.get_string(BaseBigQueryExtractor.FILTER_KEY, '')
+        self.cutoff_time = conf.get_string(BaseBigQueryExtractor.CUTOFF_TIME_KEY,
+                                           datetime.now(timezone.utc).strftime(BaseBigQueryExtractor.DATE_TIME_FORMAT))
 
         if self.key_path:
             credentials = (
@@ -72,8 +79,27 @@ class BaseBigQueryExtractor(Extractor):
             return None
 
     def _is_sharded_table(self, table_id: str) -> bool:
-        suffix = table_id[-BaseBigQueryExtractor.DATE_LENGTH:]
-        return suffix.isdigit()
+        """
+        Table with a numeric suffix starting with a date string
+        will be considered as a sharded table
+        :param table_id:
+        :return:
+        """
+        suffix = self._get_sharded_table_suffix(table_id)
+        if len(suffix) < BaseBigQueryExtractor.DATE_LENGTH:
+            return False
+
+        suffix_date = suffix[:BaseBigQueryExtractor.DATE_LENGTH]
+        try:
+            datetime.strptime(suffix_date, '%Y%m%d')
+            return True
+        except ValueError:
+            return False
+
+    def _get_sharded_table_suffix(self, table_id: str) -> str:
+        suffix_match = re.search(r'\d+$', table_id)
+        suffix = suffix_match.group() if suffix_match else ''
+        return suffix
 
     def _iterate_over_tables(self) -> Any:
         for dataset in self._retrieve_datasets():

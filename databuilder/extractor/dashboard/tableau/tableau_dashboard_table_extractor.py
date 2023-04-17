@@ -41,6 +41,10 @@ class TableauGraphQLDashboardTableExtractor(TableauGraphQLApiExtractor):
                           self._conf.get_list(TableauGraphQLDashboardTableExtractor.EXCLUDED_PROJECTS, [])]
 
         for workbook in workbooks_data:
+            if None in (workbook['projectName'], workbook['name']):
+                LOGGER.warning(f'Ignoring workbook (ID:{workbook["vizportalUrlId"]}) ' +
+                               f'in project (ID:{workbook["projectVizportalUrlId"]}) because of a lack of permission')
+                continue
             data = {
                 'dashboard_group_id': workbook['projectName'],
                 'dashboard_id': TableauDashboardUtils.sanitize_workbook_name(workbook['name']),
@@ -49,7 +53,10 @@ class TableauGraphQLDashboardTableExtractor(TableauGraphQLApiExtractor):
             }
 
             for table in workbook['upstreamTables']:
-
+                if table['name'] is None:
+                    LOGGER.warning(f'Ignoring a table in workbook (ID:{workbook["name"]}) ' +
+                                   f'in project (ID:{workbook["projectName"]}) because of a lack of permission')
+                    continue
                 # external tables have no schema, so they must be parsed differently
                 # see TableauExternalTableExtractor for more specifics
                 if table['schema'] != '':
@@ -62,7 +69,12 @@ class TableauGraphQLDashboardTableExtractor(TableauGraphQLApiExtractor):
                     # and set the "schema" value to "wrong_schema". In every case discovered so far, the schema
                     # key is incorrect, so the "inner" schema from the table name is used instead.
                     if '.' in table['name']:
-                        schema, name = table['name'].split('.')
+                        parts = table['name'].split('.')
+                        if len(parts) == 2:
+                            schema, name = parts
+                        else:
+                            database = '.'.join(parts[:-2])
+                            schema, name = parts[-2:]
                     else:
                         schema, name = table['schema'], table['name']
                     schema = TableauDashboardUtils.sanitize_schema_name(schema)
@@ -111,6 +123,8 @@ class TableauDashboardTableExtractor(Extractor):
           workbooks {
             name
             projectName
+            projectVizportalUrlId
+            vizportalUrlId
             upstreamTables {
               name
               schema

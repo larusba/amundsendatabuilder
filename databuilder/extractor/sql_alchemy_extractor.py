@@ -6,6 +6,7 @@ from typing import Any
 
 from pyhocon import ConfigFactory, ConfigTree
 from sqlalchemy import create_engine
+from sqlalchemy import text
 
 from databuilder import Scoped
 from databuilder.extractor.base_extractor import Extractor

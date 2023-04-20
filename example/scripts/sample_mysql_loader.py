@@ -55,7 +55,7 @@ def connection_string():
 
 def run_mysql_job():
     where_clause_suffix = textwrap.dedent("""
-        where c.table_schema = 'mysql'
+        where c.table_schema = 'classicmodels'
     """)
 
     tmp_folder = '/var/tmp/amundsen/table_metadata'

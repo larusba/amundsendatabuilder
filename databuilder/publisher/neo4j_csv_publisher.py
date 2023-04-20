@@ -400,7 +400,7 @@ class Neo4jCsvPublisher(Publisher):
         """
         template = Template("""
             MATCH (n1:{{ START_LABEL }} {key: $START_KEY}), (n2:{{ END_LABEL }} {key: $END_KEY})
-            MERGE (n1)-[r1:{{ TYPE }}]->(n2)-[r2:{{ REVERSE_TYPE }}]->(n1)
+            MERGE (n1)-[r1:{{ TYPE }}]->(n2)
             {% if update_prop_body %}
             ON CREATE SET {{ prop_body }}
             ON MATCH SET {{ prop_body }}
@@ -408,15 +408,13 @@ class Neo4jCsvPublisher(Publisher):
             RETURN n1.key, n2.key
         """)
 
-        prop_body_r1 = self._create_props_body(rel_record, RELATION_REQUIRED_KEYS, 'r1')
-        prop_body_r2 = self._create_props_body(rel_record, RELATION_REQUIRED_KEYS, 'r2')
-        prop_body = ' , '.join([prop_body_r1, prop_body_r2])
+        prop_body = self._create_props_body(rel_record, RELATION_REQUIRED_KEYS, 'r1')
 
         return template.render(START_LABEL=rel_record["START_LABEL"],
                                END_LABEL=rel_record["END_LABEL"],
                                TYPE=rel_record["TYPE"],
                                REVERSE_TYPE=rel_record["REVERSE_TYPE"],
-                               update_prop_body=prop_body_r1,
+                               update_prop_body=prop_body,
                                prop_body=prop_body)
 
     def _create_props_param(self, record_dict: dict) -> dict:

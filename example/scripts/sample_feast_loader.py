@@ -29,8 +29,6 @@ from databuilder.task.task import DefaultTask
 
 feast_repository_path = sys.argv[1]
 neo4j_endpoint = sys.argv[2]
-es_url = sys.argv[3]
-es = Elasticsearch([es_url])
 
 neo4j_user = "neo4j"
 neo4j_password = "test"
@@ -56,70 +54,6 @@ def create_feast_job_config():
     )
     return job_config
 
-
-def create_es_publish_job_config(
-        elasticsearch_index_alias="table_search_index",
-        elasticsearch_doc_type_key="table",
-        model_name="databuilder.models.table_elasticsearch_document.TableESDocument",
-        cypher_query=None,
-        elasticsearch_mapping=None,
-):
-    """
-    :param elasticsearch_index_alias:  alias for Elasticsearch used in
-                                       amundsensearchlibrary/search_service/config.py as an index
-    :param elasticsearch_doc_type_key: name the ElasticSearch index is prepended with. Defaults to `table` resulting in
-                                       `table_search_index`
-    :param model_name:                 the Databuilder model class used in transporting between Extractor and Loader
-    :param cypher_query:               Query handed to the `Neo4jSearchDataExtractor` class, if None is given (default)
-                                       it uses the `Table` query baked into the Extractor
-    :param elasticsearch_mapping:      Elasticsearch field mapping "DDL" handed to the `ElasticsearchPublisher` class,
-                                       if None is given (default) it uses the `Table` query baked into the Publisher
-    """
-    # loader saves data to this location and publisher reads it from here
-    extracted_search_data_path = "/var/tmp/amundsen/search_data.json"
-
-    # elastic search client instance
-    elasticsearch_client = es
-    # unique name of new index in Elasticsearch
-    elasticsearch_new_index_key = "tables" + str(uuid.uuid4())
-
-    job_config = ConfigFactory.from_dict(
-        {
-            f"extractor.search_data.extractor.neo4j.{Neo4jExtractor.GRAPH_URL_CONFIG_KEY}": neo4j_endpoint,
-            f"extractor.search_data.extractor.neo4j.{Neo4jExtractor.MODEL_CLASS_CONFIG_KEY}": model_name,
-            f"extractor.search_data.extractor.neo4j.{Neo4jExtractor.NEO4J_AUTH_USER}": neo4j_user,
-            f"extractor.search_data.extractor.neo4j.{Neo4jExtractor.NEO4J_AUTH_PW}": neo4j_password,
-            f"loader.filesystem.elasticsearch.{FSElasticsearchJSONLoader.FILE_PATH_CONFIG_KEY}":
-                extracted_search_data_path,
-            f"loader.filesystem.elasticsearch.{FSElasticsearchJSONLoader.FILE_MODE_CONFIG_KEY}": "w",
-            f"publisher.elasticsearch.{ElasticsearchPublisher.FILE_PATH_CONFIG_KEY}": extracted_search_data_path,
-            f"publisher.elasticsearch.{ElasticsearchPublisher.FILE_MODE_CONFIG_KEY}": "r",
-            f"publisher.elasticsearch.{ElasticsearchPublisher.ELASTICSEARCH_CLIENT_CONFIG_KEY}":
-                elasticsearch_client,
-            f"publisher.elasticsearch.{ElasticsearchPublisher.ELASTICSEARCH_NEW_INDEX_CONFIG_KEY}":
-                elasticsearch_new_index_key,
-            f"publisher.elasticsearch.{ElasticsearchPublisher.ELASTICSEARCH_DOC_TYPE_CONFIG_KEY}":
-                elasticsearch_doc_type_key,
-            f"publisher.elasticsearch.{ElasticsearchPublisher.ELASTICSEARCH_ALIAS_CONFIG_KEY}":
-                elasticsearch_index_alias,
-        }
-    )
-
-    # only optionally add these keys, so need to dynamically `put` them
-    if cypher_query:
-        job_config.put(
-            f"extractor.search_data.{Neo4jSearchDataExtractor.CYPHER_QUERY_CONFIG_KEY}",
-            cypher_query,
-        )
-    if elasticsearch_mapping:
-        job_config.put(
-            f"publisher.elasticsearch.{ElasticsearchPublisher.ELASTICSEARCH_MAPPING_CONFIG_KEY}",
-            elasticsearch_mapping,
-        )
-
-    return job_config
-
-
 if __name__ == "__main__":
     feast_job = DefaultJob(
         conf=create_feast_job_config(),
@@ -127,12 +61,3 @@ if __name__ == "__main__":
         publisher=neo4j_csv_publisher.Neo4jCsvPublisher(),
     )
     feast_job.launch()
-
-    es_publish_job = DefaultJob(
-        conf=create_es_publish_job_config(),
-        task=DefaultTask(
-            loader=FSElasticsearchJSONLoader(), extractor=Neo4jSearchDataExtractor()
-        ),
-        publisher=ElasticsearchPublisher(),
-    )
-    es_publish_job.launch()

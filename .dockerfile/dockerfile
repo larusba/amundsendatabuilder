@@ -25,6 +25,7 @@ RUN apt-get install python3-setuptools -y
 RUN python3.9 -m pip install numpy==1.19.5
 RUN python3.9 -m pip install Cython==0.29.32
 RUN python3.9 -m pip install --upgrade pip
+RUN python3.9 -m pip install apscheduler
 
 # Install Amundsen Databuilder dependencies
 RUN python3.9 -m pip install -r /home/requirements.txt
@@ -33,6 +34,7 @@ RUN python3.9 -m pip install -r /home/requirements.txt
 RUN python3.9 -m pip install mysqlclient
 RUN python3.9 -m pip install oracledb
 RUN python3.9 -m pip install psycopg2
+RUN python3.9 -m pip install pymongo
 
 RUN python3.9 /home/setup.py install
 
@@ -40,8 +42,8 @@ RUN python3.9 /home/setup.py install
 RUN chown -R root:root /home/cron
 RUN chmod -R 777 /home/cron
 
-# create cron.log file
-RUN touch /var/log/cron.log
+# # create cron.log file
+# RUN touch /var/log/cron.log
 
-# Run cron on container startup
-CMD ["./cron/start.sh"]
+# # Run cron on container startup
+# CMD ["./cron/start.sh"]

@@ -11,8 +11,10 @@ import logging
 import sys
 import textwrap
 import uuid
+import time
 
 from pyhocon import ConfigFactory
+from pymongo import MongoClient
 from sqlalchemy.ext.declarative import declarative_base
 
 from databuilder.extractor.mysql_metadata_extractor import MysqlMetadataExtractor
@@ -27,12 +29,16 @@ from databuilder.publisher.elasticsearch_publisher import ElasticsearchPublisher
 from databuilder.publisher.neo4j_csv_publisher import Neo4jCsvPublisher
 from databuilder.task.task import DefaultTask
 from databuilder.transformer.base_transformer import NoopTransformer
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import date
 
 DB_FILE = '/tmp/test.db'
 SQLITE_CONN_STRING = 'sqlite:////tmp/test.db'
 Base = declarative_base()
 
 NEO4J_ENDPOINT = f'bolt://neo4j:7687'
+
+MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
 neo4j_endpoint = NEO4J_ENDPOINT
 
@@ -52,8 +58,16 @@ def connection_string():
     db = 'classicmodels'
     return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
+def connection_string2():
+    user = 'root'
+    password = 'galileo'
+    host = 'mysusql'
+    port = '3306'
+    db = 'dummydb'
+    return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
-def run_mysql_job():
+
+def run_mysql_job(connection_string: str):
     where_clause_suffix = textwrap.dedent("""
         where c.table_schema = 'classicmodels'
     """)
@@ -65,7 +79,7 @@ def run_mysql_job():
     job_config = ConfigFactory.from_dict({
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
-        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connection_string(),
+        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connection_string,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
@@ -82,9 +96,15 @@ def run_mysql_job():
                      publisher=Neo4jCsvPublisher())
     return job
 
-
 if __name__ == "__main__":
     # Uncomment next line to get INFO level logging
     logging.basicConfig(level=logging.INFO)
-    loading_job = run_mysql_job()
-    loading_job.launch()
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+    mongo_client = MongoClient(MONGO_CONNECTION)
+    mongo_database = mongo_client['galileo']
+    mongo_collection = mongo_database['testConnectionStrings']
+    results = list(mongo_collection.find({}))
+    LOGGER.info("\nRISULTATO DELLA QUERY LANCIATA SU MONGO: " + str(results) + "\n")
+    for document in results:
+        loading_job = scheduler.add_job(lambda: run_mysql_job(document["connectionString"]), 'interval', minutes=1)

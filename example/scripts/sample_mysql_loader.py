@@ -14,6 +14,7 @@ import uuid
 import time
 
 from pyhocon import ConfigFactory
+from databuilder.models import ImportScheduling, Neo4jConfig
 from pymongo import MongoClient
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -40,12 +41,6 @@ NEO4J_ENDPOINT = f'bolt://neo4j:7687'
 
 MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
-neo4j_endpoint = NEO4J_ENDPOINT
-
-neo4j_user = ''
-neo4j_password = ''
-neo4j_database = 'testsql'
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -58,16 +53,8 @@ def connection_string():
     db = 'classicmodels'
     return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
-def connection_string2():
-    user = 'root'
-    password = 'galileo'
-    host = 'mysusql'
-    port = '3306'
-    db = 'dummydb'
-    return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
-
-def run_mysql_job(connection_string: str):
+def run_mysql_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
     where_clause_suffix = textwrap.dedent("""
         where c.table_schema = 'classicmodels'
     """)
@@ -79,15 +66,15 @@ def run_mysql_job(connection_string: str):
     job_config = ConfigFactory.from_dict({
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
-        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connection_string,
+        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connection_string,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.RELATION_FILES_DIR}': relationship_files_folder,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4j_endpoint,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4j_user,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4j_password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': neo4j_database,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.dbName,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'testSQL',  # should use unique tag here like {ds}
     })

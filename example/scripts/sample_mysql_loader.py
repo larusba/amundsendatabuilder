@@ -82,16 +82,3 @@ def run_mysql_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=Neo4jCsvPublisher())
     return job
-
-if __name__ == "__main__":
-    # Uncomment next line to get INFO level logging
-    logging.basicConfig(level=logging.INFO)
-    scheduler = BackgroundScheduler()
-    scheduler.start()
-    mongo_client = MongoClient(MONGO_CONNECTION)
-    mongo_database = mongo_client['galileo']
-    mongo_collection = mongo_database['testConnectionStrings']
-    results = list(mongo_collection.find({}))
-    LOGGER.info("\nRISULTATO DELLA QUERY LANCIATA SU MONGO: " + str(results) + "\n")
-    for document in results:
-        loading_job = scheduler.add_job(lambda: run_mysql_job(document["connectionString"]), 'interval', minutes=1)

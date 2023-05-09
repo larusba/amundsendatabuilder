@@ -1,1 +1,0 @@
-*/1 * * * *  /usr/local/bin/python3 /home/example/scripts/sample_mysql_loader.py >> /home/databuilder/logs/amundsen.log 2>&1

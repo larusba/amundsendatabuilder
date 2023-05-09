@@ -39,10 +39,10 @@ def connection_string():
     host = 'localhost'
     port = '5432'
     db = 'postgres'
-    return "postgresql://%s@%s:%s/%s" % (user, host, port, db)
+    return "postgresql://%s:%s@%s:%s/%s" % (user, host, port, db)
 
 
-def run_postgres_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_postgres_job(neo4jConfig, importScheduling):
     where_clause_suffix = textwrap.dedent("""
         schemaname = 'public'
     """)

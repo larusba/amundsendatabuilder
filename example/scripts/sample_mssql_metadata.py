@@ -72,7 +72,7 @@ def connection_string(windows_auth=False):
     return base_string.format(**params)
 
 
-def run_mssql_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_mssql_job(neo4jConfig, importScheduling):
     where_clause_suffix = "('dbo')"
 
     tmp_folder = '/var/tmp/amundsen/table_metadata'

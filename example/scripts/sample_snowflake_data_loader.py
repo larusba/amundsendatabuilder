@@ -48,7 +48,7 @@ def connection_string():
     return f'snowflake://{user}:{password}@{account}/{SNOWFLAKE_DATABASE_KEY}?warehouse={warehouse}'
 
 
-def run_snowflake_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_snowflake_job(neo4jConfig, importScheduling):
     where_clause = f"WHERE c.TABLE_SCHEMA not in ({','.join(IGNORED_SCHEMAS)}) \
             AND c.TABLE_SCHEMA not like 'STAGE_%' \
             AND c.TABLE_SCHEMA not like 'HIST_%' \

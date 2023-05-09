@@ -54,7 +54,7 @@ def connection_string():
     return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
 
-def run_mysql_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_mysql_job(neo4jConfig, importScheduling):
     where_clause_suffix = textwrap.dedent("""
         where c.table_schema = 'classicmodels'
     """)

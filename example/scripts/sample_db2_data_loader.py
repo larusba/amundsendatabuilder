@@ -37,7 +37,7 @@ DB2_CONN_STRING = 'db2+ibm_db://username:password@database.host.name:50000/DB;'
 IGNORED_SCHEMAS = ['\'SYSIBM\'', '\'SYSIBMTS\'', '\'SYSTOOLS\'', '\'SYSCAT\'', '\'SYSIBMADM\'', '\'SYSSTAT\'']
 
 
-def run_db2_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_db2_job(neo4jConfig, importScheduling):
     where_clause = f"WHERE c.TABSCHEMA not in ({','.join(IGNORED_SCHEMAS)}) ;"
 
     tmp_folder = '/var/tmp/amundsen/tables'

@@ -72,7 +72,7 @@ def connection_string():
 
 
 # provide schemas to run extraction on (default 'public')
-def run_vertica_job(neo4jConfig: Neo4jConfig, importScheduling: ImportScheduling):
+def run_vertica_job(neo4jConfig, importScheduling):
     where_clause_suffix = textwrap.dedent("""
         where c.table_schema = 'public'
     """)

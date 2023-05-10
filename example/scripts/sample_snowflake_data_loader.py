@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 import uuid
-from databuilder.models import ImportScheduling, Neo4jConfig
 
 from elasticsearch.client import Elasticsearch
 from pyhocon import ConfigFactory

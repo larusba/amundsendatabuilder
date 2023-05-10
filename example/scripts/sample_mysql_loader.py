@@ -14,7 +14,6 @@ import uuid
 import time
 
 from pyhocon import ConfigFactory
-from databuilder.models import ImportScheduling, Neo4jConfig
 from pymongo import MongoClient
 from sqlalchemy.ext.declarative import declarative_base
 

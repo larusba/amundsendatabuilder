@@ -54,10 +54,14 @@ def connection_string():
 
 
 def run_mysql_job(neo4jConfig, importScheduling):
-    where_clause_suffix = textwrap.dedent("""
-        where c.table_schema = 'classicmodels'
+    where_clause_suffix = textwrap.dedent(f"""
+        where c.table_schema = '{importScheduling.source_db_name}'
     """)
 
+    # LOGGER.info(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
+    # LOGGER.info(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
+    # print(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
+    # print(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
     tmp_folder = '/var/tmp/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
@@ -73,11 +77,11 @@ def run_mysql_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.dbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.target_db_name,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'testSQL',  # should use unique tag here like {ds}
     })
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=Neo4jCsvPublisher())
-    return job
+    job.launch()

@@ -91,7 +91,7 @@ def run_mssql_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.dbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.target_db_name,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'unique_tag',  # should use unique tag here like {ds}
     })
@@ -102,4 +102,4 @@ def run_mssql_job(neo4jConfig, importScheduling):
             extractor=MSSQLMetadataExtractor(),
             loader=FsNeo4jCSVLoader()),
         publisher=Neo4jCsvPublisher())
-    return job
+    job.launch()

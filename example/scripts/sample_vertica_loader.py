@@ -72,8 +72,8 @@ def connection_string():
 
 # provide schemas to run extraction on (default 'public')
 def run_vertica_job(neo4jConfig, importScheduling):
-    where_clause_suffix = textwrap.dedent("""
-        where c.table_schema = 'public'
+    where_clause_suffix = textwrap.dedent(f"""
+        where c.table_schema = '{importScheduling.source_db_name}'
     """)
 
     tmp_folder = '/var/tmp/amundsen/table_metadata'
@@ -103,7 +103,7 @@ def run_vertica_job(neo4jConfig, importScheduling):
             neo4jConfig.username,
         'publisher.neo4j.{}'.format(neo4j_csv_publisher.NEO4J_PASSWORD):
             neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.dbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.target_db_name,
         f'publisher.neo4j.neo4j_encrypted': False,
         'publisher.neo4j.{}'.format(neo4j_csv_publisher.JOB_PUBLISH_TAG):
             'unique_tag',  # should use unique tag here like {ds}
@@ -111,4 +111,4 @@ def run_vertica_job(neo4jConfig, importScheduling):
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=VerticaMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=Neo4jCsvPublisher())
-    return job
+    job.launch()

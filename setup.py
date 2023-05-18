@@ -104,7 +104,7 @@ all_deps = requirements + requirements_dev + kafka + cassandra + glue + snowflak
     + atlas + salesforce + oracle + teradata + schema_registry
 
 setup(
-    name='amundsen-databuilder',
+    name='amundsen_databuilder',
     version=__version__,
     description='Amundsen Data builder',
     url='https://www.github.com/amundsen-io/amundsen/tree/main/databuilder',

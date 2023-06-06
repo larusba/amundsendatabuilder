@@ -82,7 +82,7 @@ def run_mssql_job(neo4jConfig, importScheduling):
         # MSSQL Loader
         f'extractor.mssql_metadata.{MSSQLMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.mssql_metadata.{MSSQLMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
-        f'extractor.mssql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connection_string,
+        f'extractor.mssql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connectionString,
         # NEO4J Loader
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
@@ -91,7 +91,7 @@ def run_mssql_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.target_db_name,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.targetDbName,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'unique_tag',  # should use unique tag here like {ds}
     })
@@ -102,4 +102,8 @@ def run_mssql_job(neo4jConfig, importScheduling):
             extractor=MSSQLMetadataExtractor(),
             loader=FsNeo4jCSVLoader()),
         publisher=Neo4jCsvPublisher())
-    job.launch()
+    
+    try:
+        job.launch()
+    except Exception as exceptionInstance:
+        print(str(exceptionInstance))

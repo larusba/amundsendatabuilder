@@ -12,6 +12,7 @@ import sys
 import textwrap
 import uuid
 
+from datetime import datetime, timezone, timedelta
 from elasticsearch import Elasticsearch
 from pyhocon import ConfigFactory
 from sqlalchemy.ext.declarative import declarative_base
@@ -41,9 +42,9 @@ def connection_string():
     return "postgresql://%s:%s@%s:%s/%s" % (user, host, port, db)
 
 
-def run_postgres_job(neo4jConfig, importScheduling):
+def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str, mongo):
     where_clause_suffix = textwrap.dedent(f"""
-        schemaname = '{importScheduling.sourceDbName}'
+        schemaname = '{schemaName}'
     """)
 
     tmp_folder = '/var/tmp/amundsen/table_metadata'
@@ -53,7 +54,7 @@ def run_postgres_job(neo4jConfig, importScheduling):
     job_config = ConfigFactory.from_dict({
         f'extractor.postgres_metadata.{PostgresMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.postgres_metadata.{PostgresMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
-        f'extractor.postgres_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connectionString,
+        f'extractor.postgres_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connectionString,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True,
@@ -62,9 +63,9 @@ def run_postgres_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.targetDbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.neo4j_encrypted': False,
-        f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'unique_tag',  # should use unique tag here like {ds}
+        f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}
     })
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=PostgresMetadataExtractor(), loader=FsNeo4jCSVLoader()),
@@ -73,4 +74,10 @@ def run_postgres_job(neo4jConfig, importScheduling):
     try:
         job.launch()
     except Exception as exceptionInstance:
-        print(str(exceptionInstance))
+        utc_dt = datetime.now(timezone.utc) # UTC time
+        local_dt = utc_dt.astimezone() # local time
+        document_to_save = {"id": f"postgres_{sourceDbName}_{targetDbName}",
+                            "failureTime": format(local_dt),
+                            "cause": str(exceptionInstance)}
+        mongo.insert_one("metadataImportJobErrors", document_to_save)
+        raise exceptionInstance

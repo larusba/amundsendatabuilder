@@ -47,7 +47,7 @@ def connection_string():
     return f'snowflake://{user}:{password}@{account}/{SNOWFLAKE_DATABASE_KEY}?warehouse={warehouse}'
 
 
-def run_snowflake_job(neo4jConfig, importScheduling):
+def run_snowflake_job(neo4jConfig, connectionString: str, targetDbName: str):
     where_clause = f"WHERE c.TABLE_SCHEMA not in ({','.join(IGNORED_SCHEMAS)}) \
             AND c.TABLE_SCHEMA not like 'STAGE_%' \
             AND c.TABLE_SCHEMA not like 'HIST_%' \
@@ -65,7 +65,7 @@ def run_snowflake_job(neo4jConfig, importScheduling):
                        loader=csv_loader)
 
     job_config = ConfigFactory.from_dict({
-        f'extractor.snowflake.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connectionString,
+        f'extractor.snowflake.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connectionString,
         f'extractor.snowflake.{SnowflakeMetadataExtractor.SNOWFLAKE_DATABASE_KEY}': SNOWFLAKE_DATABASE_KEY,
         f'extractor.snowflake.{SnowflakeMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
@@ -77,7 +77,7 @@ def run_snowflake_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.targetDbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'unique_tag'
     })
@@ -88,4 +88,4 @@ def run_snowflake_job(neo4jConfig, importScheduling):
     try:
         job.launch()
     except Exception as exceptionInstance:
-        print(str(exceptionInstance))
+        raise Exception(str(exceptionInstance))

@@ -36,7 +36,7 @@ DB2_CONN_STRING = 'db2+ibm_db://username:password@database.host.name:50000/DB;'
 IGNORED_SCHEMAS = ['\'SYSIBM\'', '\'SYSIBMTS\'', '\'SYSTOOLS\'', '\'SYSCAT\'', '\'SYSIBMADM\'', '\'SYSSTAT\'']
 
 
-def run_db2_job(neo4jConfig, importScheduling):
+def run_db2_job(neo4jConfig, connectionString: str, targetDbName: str):
     where_clause = f"WHERE c.TABSCHEMA not in ({','.join(IGNORED_SCHEMAS)}) ;"
 
     tmp_folder = '/var/tmp/amundsen/tables'
@@ -50,7 +50,7 @@ def run_db2_job(neo4jConfig, importScheduling):
                        loader=csv_loader)
 
     job_config = ConfigFactory.from_dict({
-        f'extractor.db2_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connectionString,
+        f'extractor.db2_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connectionString,
         f'extractor.db2_metadata.{Db2MetadataExtractor.DATABASE_KEY}': 'DEMODB',
         f'extractor.db2_metadata.{Db2MetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
@@ -62,7 +62,7 @@ def run_db2_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.targetDbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.neo4j_encrypted': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'unique_tag'
     })
@@ -72,4 +72,4 @@ def run_db2_job(neo4jConfig, importScheduling):
     try:
         job.launch()
     except Exception as exceptionInstance:
-        print(str(exceptionInstance))
+        raise Exception(str(exceptionInstance))

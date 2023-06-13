@@ -7,6 +7,7 @@ into Neo4j and Elasticsearch without using an Airflow DAG.
 
 """
 
+from datetime import datetime, timezone, timedelta
 import logging
 import sys
 import textwrap
@@ -53,9 +54,9 @@ def connection_string():
     return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
 
 
-def run_mysql_job(neo4jConfig, importScheduling):
+def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetDbName: str, mongo):
     where_clause_suffix = textwrap.dedent(f"""
-        where c.table_schema = '{importScheduling.sourceDbName}'
+        where c.table_schema = '{sourceDbName}'
     """)
 
     # LOGGER.info(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
@@ -69,7 +70,7 @@ def run_mysql_job(neo4jConfig, importScheduling):
     job_config = ConfigFactory.from_dict({
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
-        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': importScheduling.connectionString,
+        f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connectionString,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
@@ -77,9 +78,9 @@ def run_mysql_job(neo4jConfig, importScheduling):
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': importScheduling.targetDbName,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.neo4j_encrypted': False,
-        f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': 'testSQL',  # should use unique tag here like {ds}
+        f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}
     })
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
@@ -88,4 +89,11 @@ def run_mysql_job(neo4jConfig, importScheduling):
     try:
         job.launch()
     except Exception as exceptionInstance:
-        print(str(exceptionInstance))
+        utc_dt = datetime.now(timezone.utc) # UTC time
+        local_dt = utc_dt.astimezone() # local time
+        document_to_save = {"id": f"mysql_{sourceDbName}_{targetDbName}",
+                            "executionTime": format(local_dt),
+                            "status": "FAILED",
+                            "details": str(exceptionInstance)}
+        mongo.insert_one("metadataImportJobExecutions", document_to_save)
+        raise exceptionInstance

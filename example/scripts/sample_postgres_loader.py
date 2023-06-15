@@ -77,7 +77,9 @@ def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, sche
         utc_dt = datetime.now(timezone.utc) # UTC time
         local_dt = utc_dt.astimezone() # local time
         document_to_save = {"id": f"postgres_{sourceDbName}_{targetDbName}",
-                            "failureTime": format(local_dt),
-                            "cause": str(exceptionInstance)}
+                            "dbName": targetDbName,
+                            "executionTime": format(local_dt),
+                            "status": "FAILED",
+                            "details": str(exceptionInstance)}
         mongo.insert_one("metadataImportJobErrors", document_to_save)
         raise exceptionInstance

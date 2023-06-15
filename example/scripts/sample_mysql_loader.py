@@ -92,6 +92,7 @@ def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetD
         utc_dt = datetime.now(timezone.utc) # UTC time
         local_dt = utc_dt.astimezone() # local time
         document_to_save = {"id": f"mysql_{sourceDbName}_{targetDbName}",
+                            "dbName": targetDbName,
                             "executionTime": format(local_dt),
                             "status": "FAILED",
                             "details": str(exceptionInstance)}

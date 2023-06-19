@@ -72,7 +72,7 @@ class DescriptionMetadata(GraphSerializable, AtlasSerializable):
                                     start_key: Optional[str] = None,
                                     ) -> Optional['DescriptionMetadata']:
         # We do not want to create a node if there is no description text!
-        if text is None:
+        if text is None or text == '':
             return None
         description_node = DescriptionMetadata(text=text,
                                                source=source or DescriptionMetadata.DEFAULT_SOURCE,

@@ -42,7 +42,7 @@ def connection_string():
     return "postgresql://%s:%s@%s:%s/%s" % (user, host, port, db)
 
 
-def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str, mongo):
+def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         schemaname = '{schemaName}'
     """)
@@ -70,24 +70,8 @@ def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, sche
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=PostgresMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=Neo4jCsvPublisher())
-    
-    job_id = f"postgres_{sourceDbName}_{targetDbName}"
-
-    utc_dt = datetime.now(timezone.utc) # UTC time
-    local_dt = utc_dt.astimezone() # local time
-    document_to_save = {"id": job_id,
-                    "dbName": targetDbName,
-                    "executionTime": format(local_dt),
-                    "status": "IN_PROGRESS",
-                    "details": 'mdm.import.inProgress'}
-    mongo.insert_one("metadataImportJobExecutions", document_to_save)
 
     try:
         job.launch()
     except Exception as exceptionInstance:
-        utc_dt = datetime.now(timezone.utc) # UTC time
-        local_dt = utc_dt.astimezone() # local time
-        mongo.update_one("metadataImportJobExecutions", 
-                     {"id": f"mysql_{sourceDbName}_{targetDbName}", "status": "IN_PROGRESS"}, 
-                     {"status": "FAILED", "executionTime": format(local_dt), "details": str(exceptionInstance)})
         raise exceptionInstance

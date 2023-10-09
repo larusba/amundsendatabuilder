@@ -44,17 +44,6 @@ MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
 LOGGER = logging.getLogger(__name__)
 
-
-# todo: connection string needs to change
-def connection_string():
-    user = 'root'
-    password = 'galileo'
-    host = 'mysql'
-    port = '3306'
-    db = 'classicmodels'
-    return "mysql://%s:%s@%s:%s/%s" % (user, password, host, port, db)
-
-
 def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         where c.table_schema = '{sourceDbName}'
@@ -74,13 +63,14 @@ def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetD
         f'extractor.mysql_metadata.extractor.sqlalchemy.{SQLAlchemyExtractor.CONN_STRING}': connectionString,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.NODE_DIR_PATH}': node_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
+        f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.RELATION_FILES_DIR}': relationship_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
-        f'publisher.neo4j.neo4j_encrypted': False,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_ENCRYPTED}': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}
     })
     job = DefaultJob(conf=job_config,

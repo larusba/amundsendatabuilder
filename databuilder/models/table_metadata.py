@@ -416,9 +416,7 @@ class TableMetadata(GraphSerializable, TableSerializable, AtlasSerializable):
         ]
 
         for node_tuple in others:
-            if node_tuple.key not in TableMetadata.serialized_nodes_keys:
-                TableMetadata.serialized_nodes_keys.add(node_tuple.key)
-                yield node_tuple
+            yield node_tuple
 
     def _create_table_node(self) -> GraphNode:
         table_attributes = {
@@ -526,9 +524,7 @@ class TableMetadata(GraphSerializable, TableSerializable, AtlasSerializable):
         ]
 
         for rel_tuple in others:
-            if (rel_tuple.start_key, rel_tuple.end_key, rel_tuple.type) not in TableMetadata.serialized_rels_keys:
-                TableMetadata.serialized_rels_keys.add((rel_tuple.start_key, rel_tuple.end_key, rel_tuple.type))
-                yield rel_tuple
+            yield rel_tuple
 
     def _create_column_relations(self, col: ColumnMetadata) -> Iterator[GraphRelationship]:
         column_relationship = GraphRelationship(
@@ -587,9 +583,7 @@ class TableMetadata(GraphSerializable, TableSerializable, AtlasSerializable):
         ]
 
         for record in others:
-            if record.rk not in TableMetadata.serialized_records_keys:
-                TableMetadata.serialized_records_keys.add(record.rk)
-                yield record
+            yield record
 
         # Table
         yield RDSTable(

@@ -32,16 +32,6 @@ from databuilder.transformer.base_transformer import NoopTransformer
 
 LOGGER = logging.getLogger(__name__)
 
-
-# todo: connection string needs to change
-def connection_string():
-    user = 'username'
-    host = 'localhost'
-    port = '5432'
-    db = 'postgres'
-    return "postgresql://%s:%s@%s:%s/%s" % (user, host, port, db)
-
-
 def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         schemaname = '{schemaName}'
@@ -64,7 +54,8 @@ def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, sche
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
-        f'publisher.neo4j.neo4j_encrypted': False,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_ENCRYPTED}': False,
+        
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}
     })
     job = DefaultJob(conf=job_config,

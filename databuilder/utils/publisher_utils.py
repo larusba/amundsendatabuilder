@@ -51,7 +51,7 @@ def create_neo4j_node_key_constraint(node_file: str,
                 with driver.session(database=db_name) as session:
                     try:
                         create_stmt = Template("""
-                            CREATE CONSTRAINT ON (node:{{ LABEL }}) ASSERT node.key IS UNIQUE
+                            CREATE CONSTRAINT FOR (node:{{ LABEL }}) REQUIRE node.key IS UNIQUE
                         """).render(LABEL=label)
 
                         LOGGER.info(f'Trying to create index for label {label} if not exist: {create_stmt}')

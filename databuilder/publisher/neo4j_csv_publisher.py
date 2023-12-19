@@ -508,7 +508,7 @@ class Neo4jCsvPublisher(Publisher):
         :return:
         """
         stmt = Template("""
-            CREATE CONSTRAINT ON (node:{{ LABEL }}) ASSERT node.key IS UNIQUE
+            CREATE CONSTRAINT FOR (node:{{ LABEL }}) REQUIRE node.key IS UNIQUE
         """).render(LABEL=label)
 
         LOGGER.info(f'Trying to create index for label {label} if not exist: {stmt}')

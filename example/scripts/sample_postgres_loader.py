@@ -37,7 +37,7 @@ def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, sche
         schemaname = '{schemaName}'
     """)
 
-    tmp_folder = f'/var/tmp/postgres_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
+    tmp_folder = f'/var/tmp/postgres_{neo4jConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
 

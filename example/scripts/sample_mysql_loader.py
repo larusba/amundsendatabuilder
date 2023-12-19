@@ -53,7 +53,7 @@ def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetD
     # LOGGER.info(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
     # print(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
     # print(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
-    tmp_folder = f'/var/tmp/mysql_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
+    tmp_folder = f'/var/tmp/mysql_{neo4jConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
 

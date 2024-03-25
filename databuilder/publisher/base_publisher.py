@@ -58,9 +58,9 @@ class Publisher(Scoped):
         """
         self.call_backs.append(callback)
 
+    @abc.abstractmethod
     def get_scope(self) -> str:
         return 'publisher'
-
 
 class NoopPublisher(Publisher):
     def __init__(self) -> None:

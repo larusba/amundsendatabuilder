@@ -29,15 +29,16 @@ from databuilder.publisher.elasticsearch_publisher import ElasticsearchPublisher
 from databuilder.publisher.neo4j_csv_publisher import Neo4jCsvPublisher
 from databuilder.task.task import DefaultTask
 from databuilder.transformer.base_transformer import NoopTransformer
+from mdm_importer.app.models import DbConfig
 
 LOGGER = logging.getLogger(__name__)
 
-def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
+def run_postgres_job(dbConfig: DbConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         schemaname = '{schemaName}'
     """)
 
-    tmp_folder = f'/var/tmp/postgres_{neo4jConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
+    tmp_folder = f'/var/tmp/postgres_{dbConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
 
@@ -50,9 +51,9 @@ def run_postgres_job(neo4jConfig, connectionString: str, sourceDbName: str, sche
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.RELATION_FILES_DIR}': relationship_files_folder,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': dbConfig.uri,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': dbConfig.username,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': dbConfig.password,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_ENCRYPTED}': False,
         

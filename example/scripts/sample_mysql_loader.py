@@ -35,6 +35,8 @@ from databuilder.transformer.base_transformer import NoopTransformer
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import date
 
+from mdm_importer.app.models import DbConfig
+
 DB_FILE = '/tmp/test.db'
 SQLITE_CONN_STRING = 'sqlite:////tmp/test.db'
 Base = declarative_base()
@@ -45,7 +47,7 @@ MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
 LOGGER = logging.getLogger(__name__)
 
-def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetDbName: str):
+def run_mysql_job(dbConfig: DbConfig, connectionString: str, sourceDbName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         where c.table_schema = '{sourceDbName}'
     """)
@@ -54,7 +56,7 @@ def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetD
     # LOGGER.info(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
     # print(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
     # print(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
-    tmp_folder = f'/var/tmp/mysql_{neo4jConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
+    tmp_folder = f'/var/tmp/mysql_{dbConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
     
@@ -67,9 +69,9 @@ def run_mysql_job(neo4jConfig, connectionString: str, sourceDbName: str, targetD
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True,
         f'publisher.neo4j.{neo4j_csv_publisher.NODE_FILES_DIR}': node_files_folder,
         f'publisher.neo4j.{neo4j_csv_publisher.RELATION_FILES_DIR}': relationship_files_folder,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': neo4jConfig.uri,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': neo4jConfig.username,
-        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': neo4jConfig.password,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_END_POINT_KEY}': dbConfig.uri,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_USER}': dbConfig.username,
+        f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_PASSWORD}': dbConfig.password,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_DATABASE_NAME}': targetDbName,
         f'publisher.neo4j.{neo4j_csv_publisher.NEO4J_ENCRYPTED}': False,
         f'publisher.neo4j.{neo4j_csv_publisher.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}

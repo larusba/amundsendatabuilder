@@ -22,10 +22,11 @@ from neo4j.api import (
 from neo4j.exceptions import Neo4jError, TransientError
 from pyhocon import ConfigFactory, ConfigTree
 
-from databuilder.publisher.cypher_csv_publisher import CypherCsvPublisher
+from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.neo4j_preprocessor import NoopRelationPreprocessor
 from databuilder.publisher.publisher_config_constants import (
     Neo4jCsvPublisherConfigs, PublishBehaviorConfigs, PublisherConfigs,
+    
 )
 
 # Setting field_size_limit to solve the error below
@@ -129,7 +130,7 @@ SLEEP_TIME = 2
 LOGGER = logging.getLogger(__name__)
 
 
-class Neo4jCsvPublisher(CypherCsvPublisher):
+class CypherCsvPublisher(Publisher):
     """
     A Publisher takes two folders for input and publishes to Neo4j.
     One folder will contain CSV file(s) for Node where the other folder will contain CSV
@@ -142,7 +143,7 @@ class Neo4jCsvPublisher(CypherCsvPublisher):
     """
 
     def __init__(self) -> None:
-        super(Neo4jCsvPublisher, self).__init__()
+        super(CypherCsvPublisher, self).__init__()
 
     def init(self, conf: ConfigTree) -> None:
         conf = conf.with_fallback(DEFAULT_CONFIG)

@@ -62,7 +62,7 @@ class ArcadeCsvPublisher(Scoped):
     def get_scope(self) -> str:
         return 'publisher'
 
-class NoopPublisher(Publisher):
+class NoopPublisher(ArcadeCsvPublisher):
     def __init__(self) -> None:
         super(NoopPublisher, self).__init__()
 

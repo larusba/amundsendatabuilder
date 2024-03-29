@@ -10,7 +10,6 @@ into Neo4j and Elasticsearch without using an Airflow DAG.
 import logging
 import textwrap
 
-from datetime import datetime, timezone, timedelta
 from pyhocon import ConfigFactory
 
 from databuilder.publisher.configs.publisher_conf_factory import get_conf
@@ -18,15 +17,13 @@ from databuilder.extractor.postgres_metadata_extractor import PostgresMetadataEx
 from databuilder.extractor.sql_alchemy_extractor import SQLAlchemyExtractor
 from databuilder.job.job import DefaultJob
 from databuilder.loader.file_system_neo4j_csv_loader import FsNeo4jCSVLoader
-from databuilder.publisher import neo4j_csv_publisher
 from databuilder.task.task import DefaultTask
-from mdm_importer.app.models import DbConfig
 from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.publisher_factory import PublisherFactory
 
 LOGGER = logging.getLogger(__name__)
 
-def run_postgres_job(dbConfig: DbConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
+def run_postgres_job(dbConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         schemaname = '{schemaName}'
     """)

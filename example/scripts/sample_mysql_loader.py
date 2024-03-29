@@ -22,8 +22,6 @@ from databuilder.task.task import DefaultTask
 from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.publisher_factory import PublisherFactory
 
-from mdm_importer.app.models import DbConfig
-
 DB_FILE = '/tmp/test.db'
 SQLITE_CONN_STRING = 'sqlite:////tmp/test.db'
 Base = declarative_base()
@@ -34,7 +32,7 @@ MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
 LOGGER = logging.getLogger(__name__)
 
-def run_mysql_job(dbConfig: DbConfig, connectionString: str, sourceDbName: str, targetDbName: str):
+def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbName: str):
     where_clause_suffix = textwrap.dedent(f"""
         where c.table_schema = '{sourceDbName}'
     """)

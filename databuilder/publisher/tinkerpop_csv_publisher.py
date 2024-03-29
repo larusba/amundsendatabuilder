@@ -62,7 +62,7 @@ class TinkerpopCsvPublisher(Scoped):
     def get_scope(self) -> str:
         return 'publisher'
 
-class NoopPublisher(Publisher):
+class NoopPublisher(TinkerpopCsvPublisher):
     def __init__(self) -> None:
         super(NoopPublisher, self).__init__()
 

@@ -71,3 +71,15 @@ class Neo4jCsvPublisherConfigs:
     # format <date>T<time> and <date> would apply datetime(n.start_time) and date(n.publish_tag) in the prop merge
     # statement to create the props as DateTime and Date types instead of strings.
     NEO4J_PROP_TYPES_TO_CONFIGURE = 'neo4j_prop_types_to_configure'
+
+class TinkerpopCsvPublisherConfigs:
+    GREMLIN_URI = "gremlin_uri"
+    GREMLIN_DB_USER = 'gremlin_user'
+    GREMLIN_DB_PASSWORD = 'gremlin_password'
+    GREMLIN_DATABASE_NAME = 'gremlin_database'
+
+class CypherCsvPublisherConfigs:
+    CYPHER_URI = "cypher_uri"
+    CYPHER_DB_USER = 'cypher_user'
+    CYPHER_DB_PASSWORD = 'cypher_password'
+    CYPHER_DATABASE_NAME = 'cypher_database'

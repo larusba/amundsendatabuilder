@@ -20,7 +20,7 @@ from databuilder.job.job import DefaultJob
 from databuilder.loader.file_system_neo4j_csv_loader import FsNeo4jCSVLoader
 from databuilder.task.task import DefaultTask
 from databuilder.publisher.base_publisher import Publisher
-from databuilder.publisher.publisher_factory import PublisherFactory
+from databuilder.publisher.publisher_factory import get_instance_by_db_type
 
 DB_FILE = '/tmp/test.db'
 SQLITE_CONN_STRING = 'sqlite:////tmp/test.db'
@@ -54,11 +54,10 @@ def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbNa
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True
     }
     publisher_conf: dict = get_conf(dbConfig.type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
-    conf_dict = conf_dict.update(publisher_conf)
+    conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)
-
-    publisher: Publisher = PublisherFactory.get_instance_by_db_type(dbConfig.type)
-    print("PUBLISHER: " + publisher)
+    publisher: Publisher = get_instance_by_db_type(dbtype=dbConfig.type)
+    print(f"JOB_CONFIG: {job_config}")
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=publisher)

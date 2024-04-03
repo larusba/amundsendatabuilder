@@ -77,6 +77,11 @@ class TinkerpopCsvPublisherConfigs:
     GREMLIN_DB_USER = 'gremlin_user'
     GREMLIN_DB_PASSWORD = 'gremlin_password'
     GREMLIN_DATABASE_NAME = 'gremlin_database'
+    TINKERPOP_GRAPHS = 'tinkerpop_graphs'
+
+    #Conf
+    GREMLIN_TRANSACTION_SIZE = 'gremlin_transaction_size'
+    GREMLIN_MAX_CONN_LIFE_TIME_SEC = 'gremlin_max_conn_life_time_sec'
 
 class CypherCsvPublisherConfigs:
     CYPHER_URI = "cypher_uri"

@@ -10,7 +10,7 @@ def get_publisher_tag(dbType: GdbVersion) -> str:
     elif dbType == GdbVersion.MEMGRAPH_2_9_0.value:
         return "publisher.cypher"
     elif dbType == GdbVersion.JANUSGRAPH_1_0_X.value:
-        return "publisher.tinkerpop"
+        raise Exception("GDB Type not supported")
     elif dbType == GdbVersion.ARCADEDB_23_X_X.value:
         return "publisher.arcade"
 
@@ -31,14 +31,15 @@ def get_additional_props_by_db_type(dbType: GdbVersion, dbConfig, targetDbName: 
             f'publisher.cypher.{CypherCsvPublisherConfigs.CYPHER_DATABASE_NAME}': targetDbName
         }
     elif dbType == GdbVersion.JANUSGRAPH_1_0_X.value:
-        return {
-            f'publisher.tinkerpop.{TinkerpopCsvPublisherConfigs.GREMLIN_URI}': dbConfig.uri,
-            f'publisher.tinkerpop.{TinkerpopCsvPublisherConfigs.GREMLIN_DB_USER}': dbConfig.username,
-            f'publisher.tinkerpop.{TinkerpopCsvPublisherConfigs.GREMLIN_DB_PASSWORD}': dbConfig.password,
-            f'publisher.tinkerpop.{TinkerpopCsvPublisherConfigs.GREMLIN_DATABASE_NAME}': targetDbName
-        }
-    elif dbType == GdbVersion.ARCADEDB_23_X_X.value:
         return {}
+    elif dbType == GdbVersion.ARCADEDB_23_X_X.value:
+        return {
+            f'publisher.arcade.{TinkerpopCsvPublisherConfigs.GREMLIN_URI}': dbConfig.uri,
+            f'publisher.arcade.{TinkerpopCsvPublisherConfigs.GREMLIN_DB_USER}': dbConfig.username,
+            f'publisher.arcade.{TinkerpopCsvPublisherConfigs.GREMLIN_DB_PASSWORD}': dbConfig.password,
+            f'publisher.arcade.{TinkerpopCsvPublisherConfigs.GREMLIN_DATABASE_NAME}': targetDbName,
+            f'publisher.arcade.{TinkerpopCsvPublisherConfigs.TINKERPOP_GRAPHS}': dbConfig.tinkerpopGraphs
+        }
 
 def get_conf(dbType: GdbVersion, dbConfig, targetDbName: str, node_files_folder: str, relationship_files_folder: str, sourceDbName: str):
     generic_conf = {

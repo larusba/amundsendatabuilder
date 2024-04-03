@@ -25,7 +25,7 @@ from pyhocon import ConfigFactory, ConfigTree
 from databuilder.publisher.cypher_csv_publisher import CypherCsvPublisher
 from databuilder.publisher.neo4j_preprocessor import NoopRelationPreprocessor
 from databuilder.publisher.publisher_config_constants import (
-    Neo4jCsvPublisherConfigs, PublishBehaviorConfigs, PublisherConfigs,
+    Neo4jCsvPublisherConfigs, PublishBehaviorConfigs, PublisherConfigs
 )
 
 # Setting field_size_limit to solve the error below

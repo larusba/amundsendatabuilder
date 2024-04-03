@@ -26,6 +26,7 @@ pandas>=0.21.0,<1.5.0
 responses>=0.10.6
 jsonref==0.2
 debugpy==1.6.4
+gremlinpython==3.7.1
 
 amundsen-common>=0.16.0
 amundsen-rds==0.0.8

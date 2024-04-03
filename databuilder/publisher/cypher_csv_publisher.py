@@ -26,7 +26,6 @@ from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.neo4j_preprocessor import NoopRelationPreprocessor
 from databuilder.publisher.publisher_config_constants import (
     Neo4jCsvPublisherConfigs, PublishBehaviorConfigs, PublisherConfigs,
-    
 )
 
 # Setting field_size_limit to solve the error below

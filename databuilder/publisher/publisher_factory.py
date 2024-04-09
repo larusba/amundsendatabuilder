@@ -4,7 +4,6 @@ from commons.utils.common_models import GdbVersion
 from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.neo4j_csv_publisher import Neo4jCsvPublisher
 from databuilder.publisher.tinkerpop_csv_publisher import TinkerpopCsvPublisher
-from databuilder.publisher.arcade_csv_publisher import ArcadeCsvPublisher
 from databuilder.publisher.cypher_csv_publisher import CypherCsvPublisher
 
 def get_instance_by_db_type(dbtype: GdbVersion) -> Publisher: # to use from services as db_service(gdb_service.get_client(), gdb_service.get_type())
@@ -15,6 +14,6 @@ def get_instance_by_db_type(dbtype: GdbVersion) -> Publisher: # to use from serv
     elif dbtype == GdbVersion.JANUSGRAPH_1_0_X.value:
         return TinkerpopCsvPublisher()
     elif dbtype == GdbVersion.ARCADEDB_23_X_X.value:
-        return ArcadeCsvPublisher()
+        return TinkerpopCsvPublisher()
     else:
         raise Exception(str("graphdb.connection.type.unrecognized"))

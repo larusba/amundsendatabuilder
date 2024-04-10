@@ -329,7 +329,7 @@ class TinkerpopCsvPublisher(Publisher):
                 k = k[:-len(UNQUOTED_SUFFIX)]
 
             val = v if isinstance(v, int) or isinstance(v, float) else f"'{v}'"
-            props.append(f"property('{k}', {val})")
+            props.append(f"property('{k.lower()}', {val})")
 
         if self.add_publisher_metadata:
             props.append(f"property('{PUBLISHED_TAG_PROPERTY_NAME}', '{self.publish_tag}')")
@@ -338,7 +338,7 @@ class TinkerpopCsvPublisher(Publisher):
         # add additional metatada fields from config
         for k, v in self.additional_fields.items():
             val = v if isinstance(v, int) or isinstance(v, float) else f"'{v}'"
-            props.append(f"property('{k}', {val})")
+            props.append(f"property('{k.lower()}', {val})")
 
         return '.'.join(props)
 

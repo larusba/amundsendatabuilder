@@ -9,6 +9,7 @@ into Neo4j and Elasticsearch without using an Airflow DAG.
 
 import logging
 import textwrap
+from typing import Any
 
 from pyhocon import ConfigFactory
 from sqlalchemy.ext.declarative import declarative_base
@@ -32,15 +33,11 @@ MONGO_CONNECTION = f'mongodb://admin:admin@mongo:27017/galileo?authSource=admin'
 
 LOGGER = logging.getLogger(__name__)
 
-def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbName: str):
+def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbName: str, driver: Any):
     where_clause_suffix = textwrap.dedent(f"""
         where c.table_schema = '{sourceDbName}'
     """)
-
-    # LOGGER.info(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
-    # LOGGER.info(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
-    # print(f"Neo4j Config: \nUri: {neo4jConfig.uri}\nUsername: {neo4jConfig.username}\nPassword: {neo4jConfig.password}")
-    # print(f"Import Scheduling: \nConnection String: {importScheduling.connection_string}\nDb Name: {importScheduling.db_name}")
+    
     tmp_folder = f'/var/tmp/mysql_{dbConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
@@ -56,8 +53,7 @@ def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbNa
     publisher_conf: dict = get_conf(dbConfig.type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
     conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)
-    publisher: Publisher = get_instance_by_db_type(dbtype=dbConfig.type)
-    print(f"JOB_CONFIG: {job_config}")
+    publisher: Publisher = get_instance_by_db_type(dbtype=dbConfig.type, driver=driver)
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=publisher)

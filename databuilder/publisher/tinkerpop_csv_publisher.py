@@ -58,8 +58,6 @@ LAST_UPDATED_EPOCH_MS = PublisherConfigs.LAST_UPDATED_EPOCH_MS
 # will be included as properties of the Gremlin nodes
 ADD_PUBLISHER_METADATA = PublishBehaviorConfigs.ADD_PUBLISHER_METADATA
 
-RELATION_PREPROCESSOR = 'relation_preprocessor'
-
 # CSV HEADER
 # A header with this suffix will be pass to Arcade statement without quote
 UNQUOTED_SUFFIX = ':UNQUOTED'
@@ -107,7 +105,8 @@ class TinkerpopCsvPublisher(Publisher):
     file(s) for Relationship.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, driver: TinkerpopClient) -> None:
+        self._driver: TinkerpopClient = driver
         super(TinkerpopCsvPublisher, self).__init__()
 
     def init(self, conf: ConfigTree) -> None:
@@ -121,14 +120,14 @@ class TinkerpopCsvPublisher(Publisher):
         self._relation_files = self._list_files(conf, RELATION_FILES_DIR)
         self._relation_files_iter = iter(self._relation_files)
 
-        uri = conf.get_string(GREMLIN_URI)
+        # uri = conf.get_string(GREMLIN_URI)
 
-        self._driver: TinkerpopClient = self.create_tinkerpop_driver(uri, conf)
+        # self._driver: TinkerpopClient = self.create_tinkerpop_driver(uri, conf)
         self._db_name = conf.get_string(GREMLIN_DATABASE_NAME)
 
         conn_tinkerpop_graphs: typing.Dict[str, str] = conf.get(TINKERPOP_GRAPHS, {})
         self._current_traversal_name: str = conn_tinkerpop_graphs.get(self._db_name)
-        self._gremlin_client: Client = self._driver.clients.get(self._current_traversal_name)
+        self._gremlin_client: Client = self._driver.clients.get(self._db_name)
 
         self._transaction_size = conf.get_int(GREMLIN_TRANSACTION_SIZE)
 
@@ -139,29 +138,27 @@ class TinkerpopCsvPublisher(Publisher):
         if self.add_publisher_metadata and not self.publish_tag:
             raise Exception(f'{JOB_PUBLISH_TAG} should not be empty')
 
-        self._relation_preprocessor = conf.get(RELATION_PREPROCESSOR)
-
         LOGGER.info('Publishing Node csv files %s, and Relation CSV files %s',
                     self._node_files,
                     self._relation_files)
 
-    def create_tinkerpop_driver(connection_string: str, conf: ConfigTree) -> TinkerpopClient:
-        gremlin_user: str = conf.get_string(GREMLIN_USER)
-        gremlin_password: str = conf.get_string(GREMLIN_PASSWORD)
-        conn_tinkerpop_graphs: typing.Dict[str, str] = conf.get(TINKERPOP_GRAPHS, {})
-        clients: typing.Dict[str, Client] = {}
-        tinkerpop_graphs: typing.Dict[str, GraphTraversalSource] = {}
-        for key in conn_tinkerpop_graphs:
-            clients[key] = Client(
-                url=connection_string, traversal_source=conn_tinkerpop_graphs[key], username=gremlin_user or "", password=gremlin_password or ""
-            )
-            tinkerpop_graphs[key] = traversal().withRemote(
-                DriverRemoteConnection(
-                    url=connection_string, traversal_source=conn_tinkerpop_graphs[key],
-                    username=gremlin_user or "", password=gremlin_password or ""
-                )
-            )
-        return TinkerpopClient(clients, tinkerpop_graphs)
+    # def create_tinkerpop_driver(self, connection_string: str, conf: ConfigTree) -> TinkerpopClient:
+    #     gremlin_user: str = conf.get_string(GREMLIN_USER)
+    #     gremlin_password: str = conf.get_string(GREMLIN_PASSWORD)
+    #     conn_tinkerpop_graphs: typing.Dict[str, str] = conf.get(TINKERPOP_GRAPHS, {})
+    #     clients: typing.Dict[str, Client] = {}
+    #     tinkerpop_graphs: typing.Dict[str, GraphTraversalSource] = {}
+    #     for key in conn_tinkerpop_graphs:
+    #         clients[key] = Client(
+    #             url=connection_string, traversal_source=conn_tinkerpop_graphs[key], username=gremlin_user or "", password=gremlin_password or ""
+    #         )
+    #         tinkerpop_graphs[key] = traversal().withRemote(
+    #             DriverRemoteConnection(
+    #                 url=connection_string, traversal_source=conn_tinkerpop_graphs[key],
+    #                 username=gremlin_user or "", password=gremlin_password or ""
+    #             )
+    #         )
+    #     return TinkerpopClient(clients, tinkerpop_graphs)
     
     def g(self) -> GraphTraversalSource:
         return self._driver.tinkerpop_graphs.get((self._db_name))
@@ -277,9 +274,8 @@ class TinkerpopCsvPublisher(Publisher):
         """
         template = Template("""
             {{ TRAVERSAL }}.V().hasLabel('{{ START_LABEL }}').has('key', '{{ START_KEY }}').as('source')
-                           .V().hasLabel('{{ END_LABEL }}').has('key', {{ END_KEY }}).as('target')
-                           .coalesce(in({{ TYPE }}).where(eq('source')), addE({{ TYPE }}).from(select('source')))
-                           .iterate()
+                           .V().hasLabel('{{ END_LABEL }}').has('key', '{{ END_KEY }}').as('target')
+                           .coalesce(in('{{ TYPE }}').where(eq('source')), addE('{{ TYPE }}').from(select('source'))).iterate()
         """)
 
         return template.render(TRAVERSAL=self._current_traversal_name,
@@ -301,7 +297,7 @@ class TinkerpopCsvPublisher(Publisher):
     def _match_key_body(self, record_dict: dict, key: str) -> str:
         try:
             val = record_dict.get(key)
-            return f"has('{key}', {val})"
+            return f"has('{key.lower()}', '{val}')"
         except Exception as e:
             raise e
         
@@ -329,11 +325,13 @@ class TinkerpopCsvPublisher(Publisher):
                 k = k[:-len(UNQUOTED_SUFFIX)]
 
             val = v if isinstance(v, int) or isinstance(v, float) else f"'{v}'"
+            if val == True or val == False:
+                val = f"{val}".lower()
             props.append(f"property('{k.lower()}', {val})")
 
         if self.add_publisher_metadata:
             props.append(f"property('{PUBLISHED_TAG_PROPERTY_NAME}', '{self.publish_tag}')")
-            props.append(f"property('{LAST_UPDATED_EPOCH_MS}', '{time.time()}'")
+            props.append(f"property('{LAST_UPDATED_EPOCH_MS}', {int(time.time() * 1000)})")
 
         # add additional metatada fields from config
         for k, v in self.additional_fields.items():
@@ -352,8 +350,7 @@ class TinkerpopCsvPublisher(Publisher):
         :return:
         """
         try:
-            LOGGER.debug('Executing statement: %s', stmt)
-            self._gremlin_client.submit(str(stmt))
+            self._gremlin_client.submit(message=stmt)
 
             self._count += 1
             if self._count > 1 and self._count % self._transaction_size == 0:

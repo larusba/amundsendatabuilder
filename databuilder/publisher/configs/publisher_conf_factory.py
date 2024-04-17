@@ -2,7 +2,8 @@ from commons.utils.common_models import GdbVersion
 from databuilder.publisher.publisher_config_constants import (
     Neo4jCsvPublisherConfigs, PublisherConfigs, CypherCsvPublisherConfigs, TinkerpopCsvPublisherConfigs
 )
-from datetime import datetime, timezone, timedelta
+
+import time
 
 def get_publisher_tag(dbType: GdbVersion) -> str:
     if dbType == GdbVersion.NEO4J_4_4_X.value or dbType == GdbVersion.NEO4J_5_X.value:
@@ -45,7 +46,7 @@ def get_conf(dbType: GdbVersion, dbConfig, targetDbName: str, node_files_folder:
     generic_conf = {
         f'{get_publisher_tag(dbType)}.{PublisherConfigs.NODE_FILES_DIR}': node_files_folder,
         f'{get_publisher_tag(dbType)}.{PublisherConfigs.RELATION_FILES_DIR}': relationship_files_folder,
-        f'{get_publisher_tag(dbType)}.{PublisherConfigs.JOB_PUBLISH_TAG}': f'{sourceDbName}_{format(datetime.now(timezone(timedelta(hours=+1), "UTC")))}',  # should use unique tag here like {ds}
+        f'{get_publisher_tag(dbType)}.{PublisherConfigs.JOB_PUBLISH_TAG}': f'{sourceDbName}_{targetDbName}_{int(time.time() * 1000)}',  # should use unique tag here like {ds}
     }
     specific_conf: dict = get_additional_props_by_db_type(dbType, dbConfig, targetDbName)
     conf: dict = {**generic_conf, **specific_conf}

@@ -9,6 +9,7 @@ into Neo4j and Elasticsearch without using an Airflow DAG.
 
 import logging
 import textwrap
+from typing import Any
 
 from pyhocon import ConfigFactory
 
@@ -23,7 +24,7 @@ from databuilder.publisher.publisher_factory import get_instance_by_db_type
 
 LOGGER = logging.getLogger(__name__)
 
-def run_postgres_job(dbConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str):
+def run_postgres_job(dbConfig, connectionString: str, sourceDbName: str, schemaName: str, targetDbName: str, driver: Any):
     where_clause_suffix = textwrap.dedent(f"""
         schemaname = '{schemaName}'
     """)
@@ -43,7 +44,7 @@ def run_postgres_job(dbConfig, connectionString: str, sourceDbName: str, schemaN
     publisher_conf: dict = get_conf(dbConfig.type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
     conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)
-    publisher: Publisher = get_instance_by_db_type(dbConfig.type)
+    publisher: Publisher = get_instance_by_db_type(dbConfig.type, driver=driver)
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=PostgresMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=publisher)

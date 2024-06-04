@@ -11,6 +11,7 @@ import logging
 import textwrap
 from typing import Any
 
+from commons.gdb.domain.GdbVersion import GdbVersion
 from pyhocon import ConfigFactory
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -37,11 +38,11 @@ def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbNa
     where_clause_suffix = textwrap.dedent(f"""
         where c.table_schema = '{sourceDbName}'
     """)
-    
+
     tmp_folder = f'/var/tmp/mysql_{dbConfig.connection_name}_{sourceDbName}_{targetDbName}/amundsen/table_metadata'
     node_files_folder = f'{tmp_folder}/nodes/'
     relationship_files_folder = f'{tmp_folder}/relationships/'
-    
+
     conf_dict: dict = {
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.WHERE_CLAUSE_SUFFIX_KEY}': where_clause_suffix,
         f'extractor.mysql_metadata.{MysqlMetadataExtractor.USE_CATALOG_AS_CLUSTER_NAME}': True,
@@ -50,10 +51,11 @@ def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbNa
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True
     }
-    publisher_conf: dict = get_conf(dbConfig.type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
+    gdb_type = GdbVersion.get_version(dbConfig.type)
+    publisher_conf: dict = get_conf(gdb_type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
     conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)
-    publisher: Publisher = get_instance_by_db_type(dbtype=dbConfig.type, driver=driver)
+    publisher: Publisher = get_instance_by_db_type(dbtype=gdb_type, driver=driver)
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=MysqlMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=publisher)

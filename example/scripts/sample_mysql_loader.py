@@ -51,7 +51,7 @@ def run_mysql_job(dbConfig, connectionString: str, sourceDbName: str, targetDbNa
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True
     }
-    gdb_type = GdbVersion.get_version(dbConfig.type)
+    gdb_type: GdbVersion = GdbVersion.get_version(dbConfig.type)
     publisher_conf: dict = get_conf(gdb_type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
     conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)

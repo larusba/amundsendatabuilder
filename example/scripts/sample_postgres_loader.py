@@ -21,6 +21,7 @@ from databuilder.loader.file_system_neo4j_csv_loader import FsNeo4jCSVLoader
 from databuilder.task.task import DefaultTask
 from databuilder.publisher.base_publisher import Publisher
 from databuilder.publisher.publisher_factory import get_instance_by_db_type
+from commons.gdb.domain.GdbVersion import GdbVersion
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,10 +42,11 @@ def run_postgres_job(dbConfig, connectionString: str, sourceDbName: str, schemaN
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.RELATION_DIR_PATH}': relationship_files_folder,
         f'loader.filesystem_csv_neo4j.{FsNeo4jCSVLoader.SHOULD_DELETE_CREATED_DIR}': True
     })
-    publisher_conf: dict = get_conf(dbConfig.type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
+    gdb_type: GdbVersion = GdbVersion.get_version(dbConfig.type)
+    publisher_conf: dict = get_conf(gdb_type, dbConfig, targetDbName, node_files_folder, relationship_files_folder, sourceDbName)
     conf_dict = {**conf_dict, **publisher_conf}
     job_config = ConfigFactory.from_dict(conf_dict)
-    publisher: Publisher = get_instance_by_db_type(dbConfig.type, driver=driver)
+    publisher: Publisher = get_instance_by_db_type(dbtype=gdb_type, driver=driver)
     job = DefaultJob(conf=job_config,
                      task=DefaultTask(extractor=PostgresMetadataExtractor(), loader=FsNeo4jCSVLoader()),
                      publisher=publisher)
